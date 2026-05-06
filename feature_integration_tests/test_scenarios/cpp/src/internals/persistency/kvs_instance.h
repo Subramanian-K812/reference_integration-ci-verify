@@ -16,7 +16,6 @@
 
 #include "kvs_parameters.h"
 
-#include <cstdint>
 #include <kvs.hpp>
 #include <memory>
 #include <optional>
@@ -30,14 +29,30 @@ public:
     // Wrap snapshot file into Rust-style top-level object envelope.
     static bool normalize_snapshot_file_to_rust_envelope(const KvsParameters& params);
 
-    // Set a value
+    // Set value
     bool set_value(const std::string& key, double value);
 
-    // Get a value
+    // Get value methods
     std::optional<double> get_value(const std::string& key);
+    std::optional<double> get_value_f64(const std::string& key);
 
-    // Flush to persistent storage
+    // Key management methods
+    bool remove_key(const std::string& key);
+    bool reset();
+    bool reset_key(const std::string& key);
+
+    // Flush all pending writes to persistent storage atomically.
     bool flush();
+
+    // Wrap a specific snapshot ID into the Rust-style top-level object envelope.
+    static bool normalize_snapshot_file_to_rust_envelope(
+        const KvsParameters& params, size_t snapshot_id);
+
+    // Restore the KVS in-memory state from the specified snapshot.
+    bool snapshot_restore(size_t snapshot_id);
+
+    // Return the number of snapshots currently stored on disk.
+    size_t snapshot_count();
 
 private:
     KvsInstance(const KvsParameters& params, score::mw::per::kvs::Kvs&& kvs);

@@ -56,6 +56,40 @@ double maybe_snap_noisy_decimal(double value) {
     return value;
 }
 
+/**
+ * @brief Replace integer-encoded boolean values with JSON boolean literals.
+ *
+ * The C++ KVS library stores true/false as numeric 1/0 in the snapshot JSON.
+ * This function rewrites every occurrence of {"t":"bool","v":1} → {"t":"bool","v":true}
+ * and {"t":"bool","v":0} → {"t":"bool","v":false} so that Python json.loads()
+ * returns Python bool values instead of ints.
+ *
+ * @param json Input JSON string.
+ * @return JSON string with boolean values normalised to true/false literals.
+ */
+std::string canonicalize_bool_literals(const std::string& json) {
+    static const std::regex bool_value_pattern(
+        R"("t"\s*:\s*"bool"\s*,\s*"v"\s*:\s*(0|1)\b)");
+
+    std::string result;
+    result.reserve(json.size());
+
+    std::size_t cursor = 0;
+    for (std::sregex_iterator it(json.begin(), json.end(), bool_value_pattern), end; it != end;
+         ++it) {
+        const std::smatch& match = *it;
+        const auto group_pos = static_cast<std::size_t>(match.position(1));
+        const auto group_len = static_cast<std::size_t>(match.length(1));
+
+        result.append(json, cursor, group_pos - cursor);
+        result += (match.str(1) == "1") ? "true" : "false";
+        cursor = group_pos + group_len;
+    }
+
+    result.append(json, cursor, std::string::npos);
+    return result;
+}
+
 std::string canonicalize_f64_literals(const std::string& json) {
     static const std::regex f64_value_pattern(
         R"("t"\s*:\s*"f64"\s*,\s*"v"\s*:\s*([-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?))");
@@ -98,6 +132,21 @@ std::optional<std::string> snapshot_path(const KvsParameters& params) {
     }
 
     return dir + "/kvs_" + std::to_string(params.instance_id.value) + "_0.json";
+}
+
+/// Return the path to a specific snapshot ID for the given params.
+std::optional<std::string> snapshot_path_by_id(const KvsParameters& params, size_t snapshot_id) {
+    if (!params.dir.has_value()) {
+        return std::nullopt;
+    }
+
+    std::string dir = *params.dir;
+    if (!dir.empty() && dir.back() == '/') {
+        dir.pop_back();
+    }
+
+    return dir + "/kvs_" + std::to_string(params.instance_id.value) + "_"
+           + std::to_string(snapshot_id) + ".json";
 }
 
 std::optional<bool> to_need_flag(const std::optional<KvsDefaults>& mode) {
@@ -180,7 +229,8 @@ bool KvsInstance::normalize_snapshot_file_to_rust_envelope(const KvsParameters& 
     std::ostringstream buffer;
     buffer << in.rdbuf();
     const std::string content = trim(buffer.str());
-    const std::string canonical_content = canonicalize_f64_literals(content);
+    const std::string bool_canonical = canonicalize_bool_literals(content);
+    const std::string canonical_content = canonicalize_f64_literals(bool_canonical);
 
     std::string final_content;
     if (canonical_content.rfind("{\"t\":\"obj\",\"v\":", 0) == 0) {
@@ -228,7 +278,86 @@ std::optional<double> KvsInstance::get_value(const std::string& key) {
     }
 }
 
+std::optional<double> KvsInstance::get_value_f64(const std::string& key) {
+    auto result = kvs_.get_value(key);
+    if (!result) {
+        return std::nullopt;
+    }
+
+    const auto& stored = result.value();
+    if (stored.getType() != score::mw::per::kvs::KvsValue::Type::f64) {
+        return std::nullopt;
+    }
+    return std::get<double>(stored.getValue());
+}
+
+bool KvsInstance::remove_key(const std::string& key) {
+    auto result = kvs_.remove_key(key);
+    return static_cast<bool>(result);
+}
+
+bool KvsInstance::reset() {
+    auto result = kvs_.reset();
+    return static_cast<bool>(result);
+}
+
+bool KvsInstance::reset_key(const std::string& key) {
+    auto result = kvs_.reset_key(key);
+    return static_cast<bool>(result);
+}
+
 bool KvsInstance::flush() {
     auto result = kvs_.flush();
     return static_cast<bool>(result);
+}
+
+bool KvsInstance::snapshot_restore(size_t snapshot_id) {
+    auto result = kvs_.snapshot_restore(score::mw::per::kvs::SnapshotId{snapshot_id});
+    return static_cast<bool>(result);
+}
+
+size_t KvsInstance::snapshot_count() {
+    auto result = kvs_.snapshot_count();
+    if (!result) {
+        return 0U;
+    }
+    return result.value();
+}
+
+bool KvsInstance::normalize_snapshot_file_to_rust_envelope(
+    const KvsParameters& params, size_t snapshot_id) {
+    const auto path_opt = snapshot_path_by_id(params, snapshot_id);
+    if (!path_opt.has_value()) {
+        std::cerr << "Cannot normalize snapshot " << snapshot_id
+                  << ": missing directory parameter" << std::endl;
+        return false;
+    }
+
+    std::ifstream in(*path_opt);
+    if (!in.is_open()) {
+        std::cerr << "Cannot normalize snapshot: failed to open " << *path_opt << std::endl;
+        return false;
+    }
+
+    std::ostringstream buffer;
+    buffer << in.rdbuf();
+    const std::string content = trim(buffer.str());
+    const std::string bool_canonical = canonicalize_bool_literals(content);
+    const std::string canonical_content = canonicalize_f64_literals(bool_canonical);
+
+    std::string final_content;
+    if (canonical_content.rfind("{\"t\":\"obj\",\"v\":", 0) == 0) {
+        final_content = canonical_content;
+    } else {
+        final_content = "{\"t\":\"obj\",\"v\":" + canonical_content + "}";
+    }
+
+    std::ofstream out(*path_opt, std::ios::trunc);
+    if (!out.is_open()) {
+        std::cerr << "Cannot normalize snapshot: failed to write " << *path_opt << std::endl;
+        return false;
+    }
+
+    out << final_content;
+    return static_cast<bool>(out);
 }
