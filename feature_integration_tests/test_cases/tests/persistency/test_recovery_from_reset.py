@@ -87,3 +87,94 @@ class TestRecoveryFromReset(PersistencyScenario):
             "The un-flushed write (100.0) appears to have reached persistent storage, "
             "violating the recovery-from-reset guarantee."
         )
+
+
+@add_test_properties(
+    partially_verifies=["feat_req__persistency__recovery_from_reset"],
+    test_type="requirements-based",
+    derivation_technique="requirements-analysis",
+)
+class TestRecoveryFromResetMultiInstance(PersistencyScenario):
+    """Verify that two KVS instances in the same directory each independently
+    recover to their own last-flushed state after a simulated reset.
+
+    The scenario:
+
+    1. Instance 1 writes inst1_key=50.0 and flushes (LKG on disk: kvs_1_0.json).
+    2. Instance 2 writes inst2_key=60.0 and flushes (LKG on disk: kvs_2_0.json).
+    3. Instance 1 re-opens, writes inst1_key=100.0 WITHOUT flushing (reset mid-write).
+    4. Instance 2 re-opens, writes inst2_key=120.0 WITHOUT flushing (reset mid-write).
+
+    Expected disk state after the reset:
+      kvs_1_0.json: inst1_key = 50.0  (un-flushed 100.0 never persisted)
+      kvs_2_0.json: inst2_key = 60.0  (un-flushed 120.0 never persisted)
+
+    This confirms that a crash of one instance's write path does not corrupt
+    the snapshot belonging to the other instance — each instance recovers
+    independently to its own last-flushed state.
+    """
+
+    @pytest.fixture(scope="class")
+    def scenario_name(self) -> str:
+        return "persistency.recovery_from_reset_multi_instance"
+
+    @pytest.fixture(scope="class")
+    def test_config(self, temp_dir: Path) -> dict[str, Any]:
+        return {
+            "kvs_parameters_1": {
+                "kvs_parameters": {
+                    "instance_id": 1,
+                    "dir": str(temp_dir),
+                },
+            },
+            "kvs_parameters_2": {
+                "kvs_parameters": {
+                    "instance_id": 2,
+                    "dir": str(temp_dir),
+                },
+            },
+        }
+
+    def test_instance1_recovers_to_last_flushed_value(self, results: Any, temp_dir: Path) -> None:
+        """Verify kvs_1_0.json holds 50.0 (the last flushed value) for instance 1.
+
+        The un-flushed write of 100.0 in Phase 2 must not have reached persistent
+        storage.  Instance 1 must recover to the consistent state from Phase 1.
+        """
+        assert results.return_code == ResultCode.SUCCESS
+        snapshot = read_kvs_snapshot(temp_dir, instance_id=1, snapshot_id=0)
+        assert "inst1_key" in snapshot, "inst1_key not found in kvs_1_0.json — Phase 1 flush may not have succeeded."
+        assert isclose(float(snapshot["inst1_key"]["v"]), 50.0, abs_tol=1e-4), (
+            f"Instance 1 recovered to {snapshot['inst1_key']['v']} instead of 50.0. "
+            "The un-flushed write (100.0) appears to have been persisted incorrectly."
+        )
+
+    def test_instance2_recovers_to_last_flushed_value(self, results: Any, temp_dir: Path) -> None:
+        """Verify kvs_2_0.json holds 60.0 (the last flushed value) for instance 2.
+
+        The un-flushed write of 120.0 in Phase 2 must not have reached persistent
+        storage.  Instance 2 must recover to the consistent state from Phase 1.
+        """
+        assert results.return_code == ResultCode.SUCCESS
+        snapshot = read_kvs_snapshot(temp_dir, instance_id=2, snapshot_id=0)
+        assert "inst2_key" in snapshot, "inst2_key not found in kvs_2_0.json — Phase 1 flush may not have succeeded."
+        assert isclose(float(snapshot["inst2_key"]["v"]), 60.0, abs_tol=1e-4), (
+            f"Instance 2 recovered to {snapshot['inst2_key']['v']} instead of 60.0. "
+            "The un-flushed write (120.0) appears to have been persisted incorrectly."
+        )
+
+    def test_no_cross_contamination_after_reset(self, results: Any, temp_dir: Path) -> None:
+        """Verify that neither instance's snapshot contains keys from the other.
+
+        A reset of one instance's write path must not corrupt the snapshot file
+        that belongs to the other instance.
+        """
+        assert results.return_code == ResultCode.SUCCESS
+        snap1 = read_kvs_snapshot(temp_dir, instance_id=1, snapshot_id=0)
+        snap2 = read_kvs_snapshot(temp_dir, instance_id=2, snapshot_id=0)
+        assert "inst2_key" not in snap1, (
+            "inst2_key found in kvs_1_0.json — instance-2 data contaminated instance-1 snapshot."
+        )
+        assert "inst1_key" not in snap2, (
+            "inst1_key found in kvs_2_0.json — instance-1 data contaminated instance-2 snapshot."
+        )

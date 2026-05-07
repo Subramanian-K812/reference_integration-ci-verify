@@ -11,16 +11,16 @@
 // SPDX-License-Identifier: Apache-2.0
 // *******************************************************************************
 
-//! Scenario: Verify that persistency automatically recovers to the last
-//! consistent (flushed) state after a simulated reset.
+//! Scenarios verifying `feat_req__persistency__recovery_from_reset`.
 //!
-//! A "reset" is modelled by writing data to the in-memory KVS store and then
-//! dropping the instance *without* calling `flush()`.  The un-flushed write
-//! represents work that was in progress when the power was cut.  The
-//! requirement states that after recovery the store must reflect the last
-//! *successful* flush — the partial write must not be visible.
+//! Two distinct scenarios are provided:
 //!
-//! Partially verifies: feat_req__persistency__recovery_from_reset
+//! 1. `recovery_from_reset` — single instance: un-flushed write is discarded;
+//!    on-disk snapshot reflects the last successful flush.
+//!
+//! 2. `recovery_from_reset_multi_instance` — two instances sharing the same
+//!    directory: a crash of one instance's write path must not corrupt the
+//!    snapshot belonging to the other instance.
 
 use crate::internals::persistency::{kvs_instance::kvs_instance, kvs_parameters::KvsParameters};
 use rust_kvs::prelude::KvsApi;
@@ -70,6 +70,69 @@ impl Scenario for RecoveryFromReset {
             let kvs = kvs_instance(params).map_err(|e| format!("{e:?}"))?;
             kvs.set_value("data_key", 100.0_f64).map_err(|e| format!("{e:?}"))?;
             // Instance dropped without flush — 100.0 never reaches kvs_1_0.json.
+        }
+
+        Ok(())
+    }
+}
+
+/// Multi-instance recovery: two instances sharing the same directory must each
+/// independently recover to their own last-flushed state after a simulated reset.
+pub struct RecoveryFromResetMultiInstance;
+
+impl Scenario for RecoveryFromResetMultiInstance {
+    /// Return the unique scenario name used by the test runner.
+    fn name(&self) -> &str {
+        "recovery_from_reset_multi_instance"
+    }
+
+    /// Execute the multi-instance auto-recovery scenario.
+    ///
+    /// Both instances use the **same** storage directory.
+    ///
+    /// Phase 1: Instance 1 writes `inst1_key` = 50.0 and flushes (LKG on disk).
+    ///          Instance 2 writes `inst2_key` = 60.0 and flushes (LKG on disk).
+    ///
+    /// Phase 2: Instance 1 re-opens, writes `inst1_key` = 100.0, does NOT flush
+    ///          (simulates reset mid-write).
+    ///          Instance 2 re-opens, writes `inst2_key` = 120.0, does NOT flush
+    ///          (simulates reset mid-write for the second instance).
+    ///
+    /// Expected disk state after Phase 2:
+    ///   `kvs_1_0.json`: inst1_key = 50.0  (Phase 2 write was never persisted)
+    ///   `kvs_2_0.json`: inst2_key = 60.0  (Phase 2 write was never persisted)
+    ///
+    /// This verifies that a crash of one instance's write path does not corrupt
+    /// the snapshot belonging to the other instance — each recovers independently.
+    fn run(&self, input: &str) -> Result<(), String> {
+        let v: Value = serde_json::from_str(input).map_err(|e| e.to_string())?;
+        let params1 = KvsParameters::from_value(&v["kvs_parameters_1"]).map_err(|e| e.to_string())?;
+        let params2 = KvsParameters::from_value(&v["kvs_parameters_2"]).map_err(|e| e.to_string())?;
+
+        // Phase 1: write last-known-good values for both instances and flush.
+        {
+            let kvs1 = kvs_instance(params1.clone()).map_err(|e| format!("{e:?}"))?;
+            kvs1.set_value("inst1_key", 50.0_f64).map_err(|e| format!("{e:?}"))?;
+            kvs1.flush().map_err(|e| format!("{e:?}"))?;
+        }
+        {
+            let kvs2 = kvs_instance(params2.clone()).map_err(|e| format!("{e:?}"))?;
+            kvs2.set_value("inst2_key", 60.0_f64).map_err(|e| format!("{e:?}"))?;
+            kvs2.flush().map_err(|e| format!("{e:?}"))?;
+        }
+
+        // Phase 2: write new values WITHOUT flushing for both instances —
+        // simulates a hard reset that interrupts both in-memory write paths.
+        // Neither write should reach the snapshot files.
+        {
+            let kvs1 = kvs_instance(params1).map_err(|e| format!("{e:?}"))?;
+            kvs1.set_value("inst1_key", 100.0_f64).map_err(|e| format!("{e:?}"))?;
+            // Dropped without flush — 100.0 never reaches kvs_1_0.json.
+        }
+        {
+            let kvs2 = kvs_instance(params2).map_err(|e| format!("{e:?}"))?;
+            kvs2.set_value("inst2_key", 120.0_f64).map_err(|e| format!("{e:?}"))?;
+            // Dropped without flush — 120.0 never reaches kvs_2_0.json.
         }
 
         Ok(())

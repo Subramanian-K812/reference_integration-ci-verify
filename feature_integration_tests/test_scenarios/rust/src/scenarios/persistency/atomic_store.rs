@@ -117,3 +117,75 @@ impl Scenario for AtomicStoreNoPartialWrite {
         Ok(())
     }
 }
+
+/// Multi-instance atomicity: two instances flushing concurrently (sequentially
+/// within the same process) must not interfere with each other's snapshots.
+pub struct AtomicStoreMultiInstance;
+
+impl Scenario for AtomicStoreMultiInstance {
+    /// Return the unique scenario name used by the test runner.
+    fn name(&self) -> &str {
+        "atomic_store_multi_instance"
+    }
+
+    /// Execute the multi-instance atomic store scenario.
+    ///
+    /// Both instances use the **same** storage directory.
+    ///
+    /// Phase 1: Instance 1 writes `inst1_key_a` = 11.0 and `inst1_key_b` = 12.0,
+    ///          then flushes once.  Both keys must be atomically in `kvs_1_0.json`.
+    ///          Instance 2 writes `inst2_key_a` = 21.0 and `inst2_key_b` = 22.0,
+    ///          then flushes once.  Both keys must be atomically in `kvs_2_0.json`.
+    ///
+    /// Phase 2: Both instances are re-opened (loading from their respective
+    ///          snapshots) and all keys are read back and emitted as structured
+    ///          logs.  This proves the atomic write survived a full disk-reload
+    ///          cycle, not merely that `flush()` returned `Ok`.
+    ///
+    /// The Python test verifies:
+    ///   - `kvs_1_0.json` contains both inst1 keys with correct values.
+    ///   - `kvs_2_0.json` contains both inst2 keys with correct values.
+    ///   - Log entries confirm all keys are readable after reload per instance.
+    ///   - No cross-contamination: inst2 keys absent from `kvs_1_0.json` and vice versa.
+    fn run(&self, input: &str) -> Result<(), String> {
+        let v: Value = serde_json::from_str(input).map_err(|e| e.to_string())?;
+        let params1 = KvsParameters::from_value(&v["kvs_parameters_1"]).map_err(|e| e.to_string())?;
+        let params2 = KvsParameters::from_value(&v["kvs_parameters_2"]).map_err(|e| e.to_string())?;
+
+        // Phase 1 — Instance 1: set two keys and flush atomically.
+        {
+            let kvs1 = kvs_instance(params1.clone()).map_err(|e| format!("{e:?}"))?;
+            kvs1.set_value("inst1_key_a", 11.0_f64).map_err(|e| format!("{e:?}"))?;
+            kvs1.set_value("inst1_key_b", 12.0_f64).map_err(|e| format!("{e:?}"))?;
+            kvs1.flush().map_err(|e| format!("{e:?}"))?;
+        }
+
+        // Phase 1 — Instance 2: set two keys and flush atomically.
+        {
+            let kvs2 = kvs_instance(params2.clone()).map_err(|e| format!("{e:?}"))?;
+            kvs2.set_value("inst2_key_a", 21.0_f64).map_err(|e| format!("{e:?}"))?;
+            kvs2.set_value("inst2_key_b", 22.0_f64).map_err(|e| format!("{e:?}"))?;
+            kvs2.flush().map_err(|e| format!("{e:?}"))?;
+        }
+
+        // Phase 2 — Instance 1: re-open and read back all keys to prove reload.
+        {
+            let kvs1 = kvs_instance(params1).map_err(|e| format!("{e:?}"))?;
+            let val_a: f64 = kvs1.get_value_as("inst1_key_a").map_err(|e| format!("{e:?}"))?;
+            let val_b: f64 = kvs1.get_value_as("inst1_key_b").map_err(|e| format!("{e:?}"))?;
+            info!(key = "inst1_key_a", value = val_a);
+            info!(key = "inst1_key_b", value = val_b);
+        }
+
+        // Phase 2 — Instance 2: re-open and read back all keys to prove reload.
+        {
+            let kvs2 = kvs_instance(params2).map_err(|e| format!("{e:?}"))?;
+            let val_a: f64 = kvs2.get_value_as("inst2_key_a").map_err(|e| format!("{e:?}"))?;
+            let val_b: f64 = kvs2.get_value_as("inst2_key_b").map_err(|e| format!("{e:?}"))?;
+            info!(key = "inst2_key_a", value = val_a);
+            info!(key = "inst2_key_b", value = val_b);
+        }
+
+        Ok(())
+    }
+}

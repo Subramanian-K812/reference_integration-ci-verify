@@ -11,7 +11,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // *******************************************************************************
 
-#include "../../internals/persistency/kvs_build_helpers.h"
 #include "../../internals/persistency/kvs_instance.h"
 
 #include <scenario.hpp>
@@ -102,4 +101,120 @@ public:
  */
 Scenario::Ptr make_recovery_from_reset_scenario() {
     return std::make_shared<RecoveryFromReset>();
+}
+
+namespace {
+
+/**
+ * @brief Multi-instance recovery: two instances sharing the same directory
+ *        must each independently recover to their own last-flushed state after
+ *        a simulated reset.
+ *
+ * Phase 1: Instance 1 writes inst1_key=50.0 and flushes (LKG on disk).
+ *          Instance 2 writes inst2_key=60.0 and flushes (LKG on disk).
+ * Phase 2: Instance 1 re-opens, writes inst1_key=100.0, does NOT flush
+ *          (simulates hard reset mid-write).
+ *          Instance 2 re-opens, writes inst2_key=120.0, does NOT flush
+ *          (simulates hard reset mid-write for the second instance).
+ *
+ * Expected disk state after Phase 2:
+ *   kvs_1_0.json: inst1_key = 50.0  (Phase 2 write was never persisted)
+ *   kvs_2_0.json: inst2_key = 60.0  (Phase 2 write was never persisted)
+ *
+ * This verifies that a crash of one instance's write path does not corrupt
+ * the snapshot belonging to the other instance.
+ *
+ * Partially verifies: feat_req__persistency__recovery_from_reset
+ */
+class RecoveryFromResetMultiInstance final : public Scenario {
+public:
+    /**
+     * @brief Return the scenario name used by the test runner.
+     * @return Scenario name string.
+     */
+    std::string name() const final {
+        return "recovery_from_reset_multi_instance";
+    }
+
+    /**
+     * @brief Execute the multi-instance auto-recovery scenario.
+     * @param input JSON string containing kvs_parameters_1 and kvs_parameters_2.
+     */
+    void run(const std::string& input) const final {
+        KvsParameters params1 =
+            KvsParameters::from_json_section(input, "kvs_parameters_1");
+        KvsParameters params2 =
+            KvsParameters::from_json_section(input, "kvs_parameters_2");
+
+        // Phase 1: write last-known-good values for both instances and flush.
+        {
+            auto kvs1_opt = KvsInstance::create(params1);
+            if (!kvs1_opt) {
+                throw std::runtime_error("Phase 1 Inst1: failed to create KVS instance");
+            }
+            auto kvs1 = *kvs1_opt;
+            if (!kvs1->set_value("inst1_key", 50.0)) {
+                throw std::runtime_error("Phase 1 Inst1: failed to set inst1_key");
+            }
+            if (!kvs1->flush()) {
+                throw std::runtime_error("Phase 1 Inst1: failed to flush");
+            }
+        }
+        {
+            auto kvs2_opt = KvsInstance::create(params2);
+            if (!kvs2_opt) {
+                throw std::runtime_error("Phase 1 Inst2: failed to create KVS instance");
+            }
+            auto kvs2 = *kvs2_opt;
+            if (!kvs2->set_value("inst2_key", 60.0)) {
+                throw std::runtime_error("Phase 1 Inst2: failed to set inst2_key");
+            }
+            if (!kvs2->flush()) {
+                throw std::runtime_error("Phase 1 Inst2: failed to flush");
+            }
+        }
+
+        // Phase 2: write new values WITHOUT flushing — simulates reset mid-write.
+        // Neither write should reach the snapshot files.
+        {
+            auto kvs1_opt = KvsInstance::create(params1);
+            if (!kvs1_opt) {
+                throw std::runtime_error("Phase 2 Inst1: failed to create KVS instance");
+            }
+            auto kvs1 = *kvs1_opt;
+            if (!kvs1->set_value("inst1_key", 100.0)) {
+                throw std::runtime_error("Phase 2 Inst1: failed to set inst1_key");
+            }
+            // Intentionally no flush — instance destroyed here.
+        }
+        {
+            auto kvs2_opt = KvsInstance::create(params2);
+            if (!kvs2_opt) {
+                throw std::runtime_error("Phase 2 Inst2: failed to create KVS instance");
+            }
+            auto kvs2 = *kvs2_opt;
+            if (!kvs2->set_value("inst2_key", 120.0)) {
+                throw std::runtime_error("Phase 2 Inst2: failed to set inst2_key");
+            }
+            // Intentionally no flush — instance destroyed here.
+        }
+
+        // Normalize both snapshot files to the Rust envelope format.
+        if (!KvsInstance::normalize_snapshot_file_to_rust_envelope(params1)) {
+            throw std::runtime_error("Failed to normalize snapshot for instance 1");
+        }
+        if (!KvsInstance::normalize_snapshot_file_to_rust_envelope(params2)) {
+            throw std::runtime_error("Failed to normalize snapshot for instance 2");
+        }
+    }
+};
+
+}  // namespace
+
+/**
+ * @brief Factory function for RecoveryFromResetMultiInstance scenario.
+ * @return Shared pointer to the constructed scenario.
+ */
+Scenario::Ptr make_recovery_from_reset_multi_instance_scenario() {
+    return std::make_shared<RecoveryFromResetMultiInstance>();
 }
