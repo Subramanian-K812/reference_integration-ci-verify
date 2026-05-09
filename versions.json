@@ -4,15 +4,15 @@
     "url": "https://qorix-group.github.io/reference_integration/main/"
   },
   {
+    "version": "pr-11",
+    "url": "https://qorix-group.github.io/reference_integration/pr-11/"
+  },
+  {
     "version": "pr-9",
     "url": "https://qorix-group.github.io/reference_integration/pr-9/"
   },
   {
     "version": "v0.6",
     "url": "https://qorix-group.github.io/reference_integration/v0.6/"
-  },
-  {
-    "version": "pr-11",
-    "url": "https://qorix-group.github.io/reference_integration/pr-11/"
   }
 ]
