@@ -1,0 +1,123 @@
+diff --git src/socket_pair.rs src/socket_pair.rs
+index 0f7421dd..8f687a1b 100644
+--- src/socket_pair.rs
++++ src/socket_pair.rs
+@@ -39,6 +39,11 @@ use crate::{
+     handle_errno,
+ };
+ 
++#[cfg(target_os = "nto")]
++unsafe extern "C" {
++    fn pipe(fildes: *mut i32) -> i32;
++}
++
+ const BLOCKING_TIMEOUT: Duration = Duration::from_secs(i16::MAX as _);
+ 
+ /// Defines the errors that can occur when a socket pair is created with
+@@ -203,6 +208,7 @@ impl core::error::Error for StreamingSocketPairReceiveError {}
+ pub struct StreamingSocket {
+     file_descriptor: FileDescriptor,
+     is_non_blocking: IoxAtomicBool,
++    is_pipe: bool,
+ }
+ 
+ impl FileDescriptorBased for StreamingSocket {
+@@ -253,12 +259,14 @@ impl StreamingSocket {
+             let socket_1 = StreamingSocket {
+                 file_descriptor: fd_1,
+                 is_non_blocking: IoxAtomicBool::new(false),
++                is_pipe: false,
+             };
+             fail!(from origin, when socket_1.set_non_blocking(true),
+                 "{msg} since the first file descriptor of the socket pair could not be set to non-blocking.");
+             let socket_2 = StreamingSocket {
+                 file_descriptor: fd_2,
+                 is_non_blocking: IoxAtomicBool::new(false),
++                is_pipe: false,
+             };
+             fail!(from origin, when socket_2.set_non_blocking(true),
+                 "{msg} since the second file descriptor of the socket pair could not be set to non-blocking.");
+@@ -266,6 +274,31 @@ impl StreamingSocket {
+         };
+ 
++        #[cfg(target_os = "nto")]
++        {
++            if unsafe { pipe(fd_values.as_mut_ptr()) } == 0 {
++                let fd_read = Self::create_type_safe_fd(fd_values[0], origin, msg)?;
++                let fd_write = Self::create_type_safe_fd(fd_values[1], origin, msg)?;
++                let socket_write = StreamingSocket {
++                    file_descriptor: fd_write,
++                    is_non_blocking: IoxAtomicBool::new(false),
++                    is_pipe: true,
++                };
++                fail!(from origin, when socket_write.set_non_blocking(true),
++                    "{msg} since the write end of the pipe could not be set to non-blocking.");
++                let socket_read = StreamingSocket {
++                    file_descriptor: fd_read,
++                    is_non_blocking: IoxAtomicBool::new(false),
++                    is_pipe: true,
++                };
++                fail!(from origin, when socket_read.set_non_blocking(true),
++                    "{msg} since the read end of the pipe could not be set to non-blocking.");
++                return Ok((socket_write, socket_read));
++            }
++        }
++
+         handle_errno!(StreamingSocketPairCreationError, from origin,
+             Errno::EMFILE => (PerProcessFileHandleLimitReached, "{msg} since the processes file descriptor limit was reached."),
+             Errno::ENFILE => (SystemWideFileHandleLimitReached, "{msg} since the system wide file descriptor limit was reached."),
+@@ -284,6 +317,7 @@ impl StreamingSocket {
+                 file_descriptor: Self::create_type_safe_fd(duplicated_fd, origin, msg)
+                     .map_err(|_| StreamingSocketDuplicateError::FileDescriptorBroken)?,
+                 is_non_blocking: IoxAtomicBool::new(false),
++                is_pipe: self.is_pipe,
+             };
+ 
+             fail!(from origin, when new_socket.set_non_blocking(true),
+@@ -380,14 +414,18 @@ impl StreamingSocket {
+ 
+     fn send_impl(&self, msg: &str, buf: &[u8]) -> Result<usize, StreamingSocketPairSendError> {
+         let number_of_bytes_written = unsafe {
+-            posix::send(
+-                self.file_descriptor.native_handle(),
+-                buf.as_ptr().cast(),
+-                buf.len(),
+-                0,
+-            )
++            if self.is_pipe {
++                posix::write(self.file_descriptor.native_handle(), buf.as_ptr().cast(), buf.len())
++            } else {
++                posix::send(
++                    self.file_descriptor.native_handle(),
++                    buf.as_ptr().cast(),
++                    buf.len(),
++                    0,
++                )
++            }
+         };
+ 
+         if 0 <= number_of_bytes_written {
+@@ -447,12 +485,17 @@ impl StreamingSocket {
+         flags: i32,
+     ) -> Result<usize, StreamingSocketPairReceiveError> {
+         let number_of_bytes_read = unsafe {
+-            posix::recv(
+-                self.file_descriptor.native_handle(),
+-                buf.as_mut_ptr().cast(),
+-                buf.len(),
+-                flags,
+-            )
++            if self.is_pipe {
++                let _ = flags;
++                posix::read(self.file_descriptor.native_handle(), buf.as_mut_ptr().cast(), buf.len())
++            } else {
++                posix::recv(
++                    self.file_descriptor.native_handle(),
++                    buf.as_mut_ptr().cast(),
++                    buf.len(),
++                    flags,
++                )
++            }
+         };
+ 
+         if 0 <= number_of_bytes_read {

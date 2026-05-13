@@ -1,0 +1,15 @@
+diff --git src/event/recommended.rs src/event/recommended.rs
+index 528944c7..438d34a2 100644
+--- src/event/recommended.rs
++++ src/event/recommended.rs
+@@ -11,7 +11,9 @@
+
+ /// Provides the recommended inter-process [`Event`](crate::event::Event) concept implementation
+ /// for the target.
+-pub type Ipc = crate::event::unix_datagram_socket::EventImpl;
++// QNX 7.1 on SA8650 does not support AF_UNIX datagram sockets. The orchestration
++// persistency showcase is single-process, so use the FD-based process-local event.
++pub type Ipc = crate::event::process_local_socketpair::EventImpl;
+
+ /// Provides the recommended process-local [`Event`](crate::event::Event) concept implementation
+ /// for the target.

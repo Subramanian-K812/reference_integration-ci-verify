@@ -1,0 +1,61 @@
+# *******************************************************************************
+# Copyright (c) 2026 Contributors to the Eclipse Foundation
+#
+# See the NOTICE file(s) distributed with this work for additional
+# information regarding copyright ownership.
+#
+# This program and the accompanying materials are made available under the
+# terms of the Apache License Version 2.0 which is available at
+# https://www.apache.org/licenses/LICENSE-2.0
+#
+# SPDX-License-Identifier: Apache-2.0
+# *******************************************************************************
+name: Bazel Build (Aarch64-Linux)
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+  push:
+    branches:
+      - main
+  merge_group:
+    types: [checks_requested]
+  workflow_call:
+jobs:
+  target_config_3:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./examples
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+      - name: Setup Bazel
+        uses: bazel-contrib/setup-bazel@0.18.0
+        with:
+          bazelisk-cache: true
+          disk-cache: ${{ github.job }}
+          repository-cache: true
+          cache-save: ${{ github.event_name == 'push' }}
+      - name: Bazel Build (basic)
+        run: |
+          bazel build --config target_config_3 -- //...
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: examples/bazel-bin/
+  run_on_target:
+    runs-on: ubuntu-24.04-arm
+    needs: target_config_3
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: build-output
+          path: downloaded/
+      - name: Use artifact
+        run: |
+          chmod 755 ./downloaded/main_cpp
+          chmod 755 ./downloaded/main_pthread_cpp
+          ./downloaded/main_cpp
+          ./downloaded/main_pthread_cpp

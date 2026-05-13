@@ -14,9 +14,7 @@ qcc = use_extension("@score_bazel_cpp_toolchains//extensions:gcc.bzl", "gcc", de
 qcc.sdp(
     name = "score_qcc_aarch64_toolchain_pkg",
     build_file = "//third_party/qnx710:qnx710_sdp.BUILD",
-    sha256 = "12cc587864aaf3a98e4f274b6f8aa1e82099d4d7d08a78289045a0f58eeb8411",
-    strip_prefix = "qnx710_sdp",
-    url = "file:///home/quan/proAI/reference_integration/third_party/qnx710/qnx710_sdp.tar",
+    local_path = "/home/quan/proAI/reference_integration/third_party/qnx710/archive_root/qnx710_sdp",
 )
 qcc.toolchain(
     name = "score_qcc_aarch64_toolchain",

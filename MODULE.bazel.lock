@@ -8621,21 +8621,17 @@
     },
     "@@score_bazel_cpp_toolchains+//extensions:gcc.bzl%gcc": {
       "general": {
-        "bzlTransitiveDigest": "B1dX70i16FgdD9dV6dxjtnWG4LxzrZ2cRxQ4ptjUXbY=",
-        "usagesDigest": "btPrRiik7sjYm9EQO4D/2PTp2fUQRqcjziQyXvi4H+k=",
+        "bzlTransitiveDigest": "03DwhHzj+epcMC3wuJsbmGFHwVCPZMckrN5WEgCTUJI=",
+        "usagesDigest": "usZHBcibNI1FE5b4i/xtwNICcrdkCiAi8GTrCBBEvA4=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
         "generatedRepoSpecs": {
           "score_qcc_aarch64_toolchain_pkg": {
-            "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_archive",
+            "repoRuleId": "@@bazel_tools//tools/build_defs/repo:local.bzl%new_local_repository",
             "attributes": {
-              "urls": [
-                "file:///home/quan/proAI/reference_integration/third_party/qnx710/qnx710_sdp.tar"
-              ],
-              "build_file": "@@//third_party/qnx710:qnx710_sdp.BUILD",
-              "sha256": "12cc587864aaf3a98e4f274b6f8aa1e82099d4d7d08a78289045a0f58eeb8411",
-              "strip_prefix": "qnx710_sdp"
+              "path": "/home/quan/proAI/reference_integration/third_party/qnx710/archive_root/qnx710_sdp",
+              "build_file": "@@//third_party/qnx710:qnx710_sdp.BUILD"
             }
           },
           "score_gcc_x86_64_toolchain_pkg": {
