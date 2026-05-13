@@ -59,7 +59,9 @@ async fn on_shutdown() -> InvokeResult {
 
     // Configure backend with directory path (workaround: KvsBuilder::dir() not available in Rust)
     // change back to dir, if https://github.com/eclipse-score/persistency/issues/222 is resolved.
-    let backend = JsonBackendBuilder::new().working_dir(PathBuf::from("/tmp")).build();
+    let working_dir =
+        std::env::var("SCORE_PERSISTENCY_DIR").unwrap_or_else(|_| "/mnt/score_kvs".to_string());
+    let backend = JsonBackendBuilder::new().working_dir(PathBuf::from(working_dir)).build();
 
     let builder = KvsBuilder::new(instance_id)
         .backend(Box::new(backend))

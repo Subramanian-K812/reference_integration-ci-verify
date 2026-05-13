@@ -2,7 +2,7 @@
     "schema_version": 1,
     "defaults": {
         "deployment_config": {
-            "bin_dir": "/showcases/bin/",
+            "bin_dir": "/mnt/showcases/bin/",
             "ready_recovery_action": {
                 "restart": {
                     "number_of_attempts": 1,
@@ -58,6 +58,11 @@
                     }
                 },
                 "depends_on": []
+            },
+            "deployment_config": {
+                "environmental_variables": {
+                    "LD_LIBRARY_PATH": "/mnt/lib64:/mnt/showcases/lib:/ifs/lib64"
+                }
             }
         },
         "cpp_supervised_app": {
@@ -72,8 +77,9 @@
             },
             "deployment_config": {
                 "environmental_variables": {
+                    "LD_LIBRARY_PATH": "/mnt/lib64:/mnt/showcases/lib:/ifs/lib64",
                     "PROCESSIDENTIFIER": "cpp_supervised_app",
-                    "CONFIG_PATH": "/showcases/data/simple_lifecycle/etc/hmproc_cpp_supervised_app.bin",
+                    "CONFIG_PATH": "/mnt/showcases/data/simple_lifecycle/etc/hmproc_cpp_supervised_app.bin",
                     "IDENTIFIER": "cpp_supervised_app"
                 }
             }
@@ -90,8 +96,9 @@
             },
             "deployment_config": {
                 "environmental_variables": {
+                    "LD_LIBRARY_PATH": "/mnt/lib64:/mnt/showcases/lib:/ifs/lib64",
                     "PROCESSIDENTIFIER": "rust_supervised_app",
-                    "CONFIG_PATH": "/showcases/data/simple_lifecycle/etc/hmproc_rust_supervised_app.bin",
+                    "CONFIG_PATH": "/mnt/showcases/data/simple_lifecycle/etc/hmproc_rust_supervised_app.bin",
                     "IDENTIFIER": "rust_supervised_app"
                 }
             }

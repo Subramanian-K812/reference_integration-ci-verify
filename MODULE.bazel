@@ -16,6 +16,11 @@ module(
     compatibility_level = 0,
 )
 
+local_path_override(
+    module_name = "score_bazel_cpp_toolchains",
+    path = "third_party/score_bazel_cpp_toolchains",
+)
+
 # Include common modules
 include("//bazel_common:score_basic_bazel.MODULE.bazel")
 

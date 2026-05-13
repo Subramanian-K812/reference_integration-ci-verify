@@ -3,22 +3,24 @@
     "description": "Example for running communication sender and receiver",
     "apps":[
         {
-            "path": "/showcases/bin/ipc_bridge_cpp",
+            "path": "/mnt/showcases/bin/ipc_bridge_send_qnx.sh",
             "args": [
                 "-n", "10", "-t", "100", "-m", "send"
             ],
             "env": {
+                "LD_LIBRARY_PATH": "/mnt/lib64:/mnt/showcases/lib:/ifs/lib64"
             },
-            "dir": "/showcases/data/comm"
+            "dir": "/mnt/showcases/data/comm"
         },
         {
-            "path": "/showcases/bin/ipc_bridge_cpp",
+            "path": "/mnt/showcases/bin/ipc_bridge_cpp",
             "args": [
                 "-n", "5", "-t", "100", "-m", "recv"
             ],
             "env": {
+                "LD_LIBRARY_PATH": "/mnt/lib64:/mnt/showcases/lib:/ifs/lib64"
             },
-            "dir": "/showcases/data/comm"
+            "dir": "/mnt/showcases/data/comm"
         }
     ]
 }

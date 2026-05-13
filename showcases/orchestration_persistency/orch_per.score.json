@@ -3,10 +3,12 @@
     "description": "Example for running orchestration graph with Kyron runtime and saving the state to disk",
     "apps":[
         {
-            "path": "/showcases/bin/orch_per_example",
+            "path": "/mnt/showcases/bin/orch_per_example",
             "args": [
             ],
             "env": {
+                "LD_LIBRARY_PATH": "/mnt/lib64:/mnt/showcases/lib:/ifs/lib64",
+                "SCORE_PERSISTENCY_DIR": "/mnt/score_kvs"
             }
         }
     ]

@@ -75,7 +75,7 @@ fn pause_for_enter() -> Result<()> {
 fn main() -> Result<()> {
     let args = Args::parse();
 
-    let root_dir = env::var("SCORE_CLI_INIT_DIR").unwrap_or_else(|_| "/showcases".to_string());
+    let root_dir = env::var("SCORE_CLI_INIT_DIR").unwrap_or_else(|_| "/mnt/showcases".to_string());
 
     let mut configs = Vec::new();
     visit_dir(Path::new(&root_dir), &mut configs)?;

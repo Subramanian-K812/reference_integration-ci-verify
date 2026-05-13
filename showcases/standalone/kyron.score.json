@@ -4,9 +4,11 @@
         "description": "Example for select! macro using safe async runtime",
         "apps": [
             {
-                "path": "/showcases/bin/select",
+                "path": "/mnt/showcases/bin/select",
                 "args": [],
-                "env": {}
+                "env": {
+                    "LD_LIBRARY_PATH": "/mnt/lib64:/mnt/showcases/lib:/ifs/lib64"
+                }
             }
         ]
     },
@@ -15,9 +17,11 @@
         "description": "Example assuring that errors in safety task will always get reaction runtime even if worker can be blocked",
         "apps": [
             {
-                "path": "/showcases/bin/safety_task",
+                "path": "/mnt/showcases/bin/safety_task",
                 "args": [],
-                "env": {}
+                "env": {
+                    "LD_LIBRARY_PATH": "/mnt/lib64:/mnt/showcases/lib:/ifs/lib64"
+                }
             }
         ]
     },
@@ -26,9 +30,11 @@
         "description": "Example running async code via main! macro",
         "apps": [
             {
-                "path": "/showcases/bin/main_macro",
+                "path": "/mnt/showcases/bin/main_macro",
                 "args": [],
-                "env": {}
+                "env": {
+                    "LD_LIBRARY_PATH": "/mnt/lib64:/mnt/showcases/lib:/ifs/lib64"
+                }
             }
         ]
     }

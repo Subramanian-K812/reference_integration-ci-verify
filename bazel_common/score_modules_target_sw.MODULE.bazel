@@ -34,6 +34,7 @@ single_version_override(
         "//patches/communication:001-expose-comm-examples.patch",
         "//patches/communication:002-tests-visibility.patch",
         "//patches/communication:003-module-deps-visibility.patch",
+        "//patches/communication:004-qnx7-discovery-path.patch",
     ],
     version = "0.2.1",
 )

@@ -1,0 +1,28 @@
+diff --git a/score/mw/com/impl/bindings/lola/partial_restart_path_builder.cpp b/score/mw/com/impl/bindings/lola/partial_restart_path_builder.cpp
+index fa62998..f513629 100644
+--- a/score/mw/com/impl/bindings/lola/partial_restart_path_builder.cpp
++++ b/score/mw/com/impl/bindings/lola/partial_restart_path_builder.cpp
+@@ -24,7 +24,7 @@ constexpr auto kPartialRestartDir = "partial_restart/";
+ // Need to limit this functionality to QNX only.
+ // coverity[autosar_cpp14_a16_0_1_violation]
+ #if defined(__QNXNTO__)
+-constexpr auto kTmpPathPrefix = "/tmp_discovery/";
++constexpr auto kTmpPathPrefix = "/var/data/tmp_discovery/";
+ // coverity[autosar_cpp14_a16_0_1_violation]  Different implementation required for linux.
+ #else
+ constexpr auto kTmpPathPrefix = "/tmp/";
+diff --git a/score/mw/com/impl/bindings/lola/service_discovery/flag_file.cpp b/score/mw/com/impl/bindings/lola/service_discovery/flag_file.cpp
+index aecf210..0e1c345 100644
+--- a/score/mw/com/impl/bindings/lola/service_discovery/flag_file.cpp
++++ b/score/mw/com/impl/bindings/lola/service_discovery/flag_file.cpp
+@@ -36,7 +36,7 @@ namespace
+ // Suppress "AUTOSAR C++14 A3-3-2" rule finding. This rule states: "Static and thread-local objects shall be
+ // constant-initialized.".
+ // score::filesystem::Path is not literal class as it has std::vector data member.
+-// coverity[autosar_cpp14_a3_3_2_violation]
+-const filesystem::Path TMP_PATH{"/tmp_discovery/mw_com_lola/service_discovery"};
++// coverity[autosar_cpp14_a3_3_2_violation]
++const filesystem::Path TMP_PATH{"/var/data/tmp_discovery/mw_com_lola/service_discovery"};
+ // coverity[autosar_cpp14_a16_0_1_violation]
+ #else
+ // coverity[autosar_cpp14_a3_3_2_violation]

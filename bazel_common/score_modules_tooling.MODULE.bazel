@@ -15,9 +15,9 @@
 # Do not edit manually - use scripts/known_good/update_module_from_known_good.py
 
 bazel_dep(name = "score_crates")
-single_version_override(
+local_path_override(
     module_name = "score_crates",
-    version = "0.0.9",
+    path = "third_party/score_crates",
 )
 
 bazel_dep(name = "score_itf")

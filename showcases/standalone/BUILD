@@ -14,7 +14,10 @@ load("//bazel_common:bundlers.bzl", "score_pkg_bundle")
 
 score_pkg_bundle(
     name = "comm",
-    bins = ["@score_communication//score/mw/com/example/ipc_bridge:ipc_bridge_cpp"],
+    bins = [
+        "@score_communication//score/mw/com/example/ipc_bridge:ipc_bridge_cpp",
+        ":ipc_bridge_send_qnx.sh",
+    ],
     config_data = [
         "//showcases/standalone:com.score.json",
     ],
