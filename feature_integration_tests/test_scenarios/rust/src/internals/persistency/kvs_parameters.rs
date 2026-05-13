@@ -36,6 +36,21 @@ impl KvsParameters {
     pub fn from_value(value: &serde_json::Value) -> Result<Self, serde_json::Error> {
         serde_json::from_value(value["kvs_parameters"].clone())
     }
+
+    /// Parse `KvsParameters` from the named top-level section of a JSON input
+    /// string.
+    ///
+    /// Convenience wrapper used by scenario `run` implementations that receive
+    /// a raw JSON string and need to extract a single `kvs_parameters` section.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let params = KvsParameters::parse_from_section(input, "kvs_parameters_1")?;
+    /// ```
+    pub fn parse_from_section(input: &str, section: &str) -> Result<Self, String> {
+        let v: serde_json::Value = serde_json::from_str(input).map_err(|e| e.to_string())?;
+        Self::from_value(&v[section]).map_err(|e| e.to_string())
+    }
 }
 
 fn deserialize_instance_id<'de, D>(deserializer: D) -> Result<InstanceId, D::Error>
