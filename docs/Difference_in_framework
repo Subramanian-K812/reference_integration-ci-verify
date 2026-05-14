@@ -1,0 +1,95 @@
+Yes — they use CIT (Component Integration Tests)
+The eclipse-score/persistency repository uses a test framework they call CIT ("Component Integration Tests"). It is the same architectural pattern as the FIT tests in reference_integration — Python pytest orchestrates scenario binaries written in both Rust and C++, using the same --scenario/--name + --input JSON + structured log line pattern. CIT is the persistency team's own copy of this framework, living inside their own repo.
+
+Repository Structure
+Run with: bazel test //:cit_tests
+
+CIT file locations (persistency repo)
+- tests/test_cases/tests/test_cit_supported_datatypes.py
+- tests/test_cases/tests/test_cit_default_values.py
+- tests/test_scenarios/rust/src/cit/supported_datatypes.rs
+- tests/test_scenarios/rust/src/cit/default_values.rs
+- tests/test_scenarios/cpp/src/cit/supported_datatypes.cpp
+- tests/test_scenarios/cpp/src/cit/default_values.cpp
+
+CIT scenario names used by those tests
+Supported datatypes (CIT):
+- cit.supported_datatypes.keys
+- cit.supported_datatypes.values.i32
+- cit.supported_datatypes.values.u32
+- cit.supported_datatypes.values.i64
+- cit.supported_datatypes.values.u64
+- cit.supported_datatypes.values.f64
+- cit.supported_datatypes.values.bool
+- cit.supported_datatypes.values.str
+- cit.supported_datatypes.values.arr
+- cit.supported_datatypes.values.obj
+
+Default values (CIT):
+- cit.default_values.default_values
+- cit.default_values.remove_key
+- cit.default_values.reset_all_keys
+- cit.default_values.reset_single_key
+- cit.default_values.checksum
+
+Note: CIT uses the same default_values scenario for malformed/missing defaults. It passes an invalid or missing defaults file to force failure and asserts on stderr.
+
+How CIT's Implementation Works (and Differs from Our FIT)
+1. Scenario path prefix
+CIT (persistency repo)	Our FIT (reference_integration)
+Scenario path prefix	cit.supported_datatypes.keys	persistency.supported_datatypes.keys
+Base class	CommonScenario	FitScenario
+KVS input field	kvs_parameters (single, flat)	kvs_parameters_1 (namespaced for multi-KVS tests)
+CIT scenarios receive {"kvs_parameters": {"instance_id": 1}} while our FIT receives {"kvs_parameters_1": {"kvs_parameters": {...}}}. This structural difference exists because our FIT was designed to handle multiple KVS instances per app from the start.
+
+2. Supported Datatypes — CIT vs FIT
+Both are structurally identical in approach:
+
+SupportedDatatypesKeys scenario: stores 3 UTF-8 keys (same exact strings: "example", "emoji ✅❗😀", "greek ημα"), calls get_all_keys(), logs each
+SupportedDatatypesValues scenario: one per type, stores typed value, reads back, serializes as {"t": "...", "v": ...} tagged JSON, logs key + value
+Key difference — JSON serialization in Rust:
+
+CIT Rust	Our FIT Rust
+JSON library	tinyjson — JsonValue::from(kvs_value) + .stringify()	serde_json — manual kvs_value_to_tagged_json() function
+Float precision	Handled by tinyjson library	Handled by serde_json
+CIT Rust uses tinyjson which has a built-in From<KvsValue> implementation, so serialization is one line. Our FIT manually constructs tagged JSON with json!({"t": ..., "v": ...}) using serde_json, giving more explicit control but more code.
+
+Key difference — C++ logging:
+
+CIT C++	Our FIT C++
+Log emitter	tracing.hpp / info_log() function (uses score_log)	CppLog class (custom, lightweight JSON emitter)
+JSON escaping	Handled by score_log	Added manually via escape_json() helper (bug fix)
+CIT uses the actual score_log tracing infrastructure — the same one used in production code. Our FIT uses a minimal hand-rolled CppLog class, which required a bug fix to add JSON string escaping.
+
+3. Default Values — CIT vs FIT
+Both cover the same scenarios. The key structural difference is how CIT parametrizes "optional" / "required" / "without" (no defaults file):
+
+CIT approach: A single TestDefaultValues class is decorated with an additional @pytest.mark.parametrize("defaults", ["optional", "required", "without"]). So one class runs 6 variants (3 defaults modes × 2 versions). Within the test, conditional logic branches on defaults:
+
+Our FIT approach: Separate test classes for each defaults mode (TestDefaultValues, TestDefaultValuesWithoutDefaultsFile, TestDefaultValuesMissingDefaultsFile, TestDefaultValuesMalformedDefaultsFile) — each class is focused and has no internal branching.
+
+CIT	Our FIT
+Test organization	One parametrized class with internal if branches	Separate focused classes per mode
+Malformed defaults file	Creates a file truncated by 2 chars: json_str[:-2], verifies stderr with regex file "..." could not be read	Writes completely malformed JSON, verifies stderr matches JsonParserError
+Missing defaults file	No file created, return_code == ResultCode.PANIC	No file created, return_code != 0, stderr matches KvsFileReadError|FileNotFound
+is_value_default API	Rust has is_value_default() directly	C++ has no direct API — synthesized from has_default_value() + value comparison in value_is_default_string()
+The most significant difference: CIT's default_values.rs Rust scenario calls kvs.is_value_default(key) which returns Result<bool, ErrorCode> natively. Our FIT Rust does the same. But CIT's C++ scenario also calls kvs.is_value_default(key) — this API was recently added to CIT (commit 442c5c2: "impl: align is_value_default interface").
+
+This C++ API does NOT yet exist in the version of kvs.hpp we are pinned to in reference_integration (has_default_value() and get_default_value() are available, but not a single is_value_default() method). For that reason our FIT C++ synthesizes the result manually in default_values.cpp using value_is_default_string(), and KvsInstance::is_value_default() in kvs_instance.cpp has been implemented using the same synthesis (has_default_value() + get_default_value() + get_value() + f64 comparison). This is not a cleanup item but a correct workaround for the pinned version. When reference_integration is updated to a newer persistency version that exposes is_value_default() in kvs.hpp, both default_values.cpp and kvs_instance.cpp can be simplified to call the native API directly.
+
+4. Summary of Approach Differences
+Dimension	CIT (persistency repo)	Our FIT (reference_integration)
+Purpose	Tests the persistency component in isolation	Tests the feature as integrated with the rest of SCORE stack
+Scenario namespace	cit.*	persistency.*
+Input structure	Flat kvs_parameters	Nested kvs_parameters_1.kvs_parameters
+Rust JSON library	tinyjson (uses From<KvsValue> conversion)	serde_json (manual tagged JSON construction)
+C++ log emitter	score_log (production tracing infrastructure)	CppLog (lightweight custom emitter)
+Test class structure	Parametrized single class covering multiple modes	Separate classes per scenario variant
+is_value_default C++	Native API kvs.is_value_default()	Synthesized from has_default_value() + comparison
+Requirements linked	comp_req__persistency__* (component requirements)	feat_req__persistency__* (feature requirements)
+Run command	bazel test //:cit_tests	bazel test //feature_integration_tests/test_cases:fit_rust/cpp
+
+Parity check summary
+- All CIT supported_datatypes scenarios are covered by FIT (keys + 9 per-type value cases, including arr/obj).
+- All CIT default_values scenarios are covered by FIT (default_values, remove_key, reset_all_keys, reset_single_key, checksum, malformed defaults, missing defaults).
+- Test data values differ for reset_all/reset_single (CIT uses defaults 432.1*i and overrides 123.4*i; FIT uses defaults 10.0*(i+1) and overrides 123.4*i). This does not change the requirement coverage because assertions validate behavior (default vs override) rather than specific constants.

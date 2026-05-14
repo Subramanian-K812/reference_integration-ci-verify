@@ -17,7 +17,7 @@ permissions:
   pull-requests: write
   id-token: write
 on:
-  pull_request_target: # Allows forks to trigger the docs build
+  pull_request_target: # Allow forks to access secrets
     types: [opened, reopened, synchronize]
   push:
     branches:
@@ -34,7 +34,7 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 jobs:
   test_and_docs:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     permissions:
       contents: write # required to upload release assets
       pull-requests: write
