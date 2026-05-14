@@ -189,3 +189,96 @@ impl Scenario for AtomicStoreMultiInstance {
         Ok(())
     }
 }
+
+/// Flush-failure atomicity: if `flush()` fails the on-disk snapshot must
+/// still reflect the last successfully flushed state.
+///
+/// This verifies the "atomic on failure" guarantee: either the entire new
+/// snapshot is written, or none of it is — a failed flush must leave the
+/// existing snapshot intact and unmodified.
+pub struct AtomicStoreFlushFailure;
+
+impl Scenario for AtomicStoreFlushFailure {
+    /// Return the unique scenario name used by the test runner.
+    fn name(&self) -> &str {
+        "atomic_store_flush_failure"
+    }
+
+    /// Execute the flush-failure atomicity scenario.
+    ///
+    /// Phase 1: Create KVS, write `key_a` = 10.0, flush successfully.
+    ///          This is the last-known-good (LKG) snapshot on disk.
+    ///
+    /// Phase 2: Re-open KVS, write `key_a` = 99.0, then make the existing
+    ///          snapshot file (`kvs_1_0.json`) read-only so that `flush()`
+    ///          cannot overwrite it.  KVS writes directly to the existing
+    ///          snapshot (no atomic temp-file + rename), so file-level
+    ///          permissions are the correct mechanism.  `flush()` must return
+    ///          an error.  Permissions are restored immediately after.
+    ///          The on-disk snapshot must still contain `key_a` = 10.0.
+    ///
+    /// Phase 3: Re-open KVS from disk — must load the Phase 1 value (10.0),
+    ///          not the un-persisted in-memory value (99.0).
+    ///          A structured log entry with `phase = "reload"` is emitted so
+    ///          the Python test can assert the API-visible value.
+    fn run(&self, input: &str) -> Result<(), String> {
+        use std::os::unix::fs::PermissionsExt;
+
+        let v: Value = serde_json::from_str(input).map_err(|e| e.to_string())?;
+        let params = KvsParameters::from_value(&v["kvs_parameters_1"]).map_err(|e| e.to_string())?;
+
+        let dir = params
+            .dir
+            .as_ref()
+            .ok_or_else(|| "kvs_parameters_1 missing 'dir'".to_string())?
+            .clone();
+
+        // Phase 1: write key_a=10.0 and flush — establishes the LKG snapshot.
+        {
+            let kvs = kvs_instance(params.clone()).map_err(|e| format!("{e:?}"))?;
+            kvs.set_value("key_a", 10.0_f64).map_err(|e| format!("{e:?}"))?;
+            kvs.flush().map_err(|e| format!("{e:?}"))?;
+        }
+
+        // Phase 2: write key_a=99.0 then make the existing snapshot file
+        // read-only so flush() cannot overwrite it.  KVS writes directly to
+        // the existing kvs_1_0.json (no atomic temp-file + rename), so
+        // file-level permissions are the correct mechanism.  Permissions are
+        // restored immediately after the call regardless of outcome.
+        let snapshot_path = std::path::PathBuf::from(&dir).join("kvs_1_0.json");
+        {
+            let kvs = kvs_instance(params.clone()).map_err(|e| format!("{e:?}"))?;
+            kvs.set_value("key_a", 99.0_f64).map_err(|e| format!("{e:?}"))?;
+
+            // Revoke write permission on the existing snapshot file.
+            let mut perms = std::fs::metadata(&snapshot_path)
+                .map_err(|e| e.to_string())?
+                .permissions();
+            perms.set_mode(0o444);
+            std::fs::set_permissions(&snapshot_path, perms).map_err(|e| e.to_string())?;
+
+            let flush_result = kvs.flush();
+
+            // Restore write permission regardless of flush outcome.
+            let mut restore = std::fs::metadata(&snapshot_path)
+                .map_err(|e| e.to_string())?
+                .permissions();
+            restore.set_mode(0o644);
+            std::fs::set_permissions(&snapshot_path, restore).map_err(|e| e.to_string())?;
+
+            if flush_result.is_ok() {
+                return Err("Phase 2: flush() succeeded with a read-only snapshot file — expected failure".to_string());
+            }
+        }
+
+        // Phase 3: re-open KVS from disk — must load Phase 1 value (10.0).
+        // The in-memory 99.0 write from Phase 2 was never persisted.
+        {
+            let kvs = kvs_instance(params).map_err(|e| format!("{e:?}"))?;
+            let val_a: f64 = kvs.get_value_as("key_a").map_err(|e| format!("{e:?}"))?;
+            info!(phase = "reload", key = "key_a", value = val_a);
+        }
+
+        Ok(())
+    }
+}

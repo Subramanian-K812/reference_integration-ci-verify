@@ -92,14 +92,52 @@ public:
                 "\"key\":\"data_key\",\"value\":"
                 + kvs_build_helpers::format_double_python(current_val.value()),
                 "cpp_test_scenarios::scenarios::persistency::reset_resistant");
+        }
 
-            // Normalize both snapshots to the Rust envelope format for Python assertions.
-            if (!KvsInstance::normalize_snapshot_file_to_rust_envelope(params)) {
-                throw std::runtime_error("Phase 2: failed to normalize snapshot_0");
+        // Phase 3: simulate an interruption — write new value WITHOUT flushing.
+        // The existing snapshots (kvs_1_0.json=100.0, kvs_1_1.json=50.0) must
+        // remain intact; the un-flushed write must not corrupt either file.
+        {
+            auto kvs_opt = KvsInstance::create(params);
+            if (!kvs_opt) {
+                throw std::runtime_error("Phase 3: failed to create KVS instance");
             }
-            if (!KvsInstance::normalize_snapshot_file_to_rust_envelope(params, 1U)) {
-                throw std::runtime_error("Phase 2: failed to normalize snapshot_1");
+            auto kvs = *kvs_opt;
+
+            if (!kvs->set_value("data_key", 150.0)) {
+                throw std::runtime_error("Phase 3: failed to set data_key");
             }
+            // Intentionally no flush — instance destroyed here, simulating reset.
+        }
+
+        // Phase 4: re-open KVS from disk after the simulated interruption.
+        // Must load the last successfully flushed value (100.0 from Phase 2),
+        // proving that the previous snapshot survives the interrupted write.
+        // Must run before normalization so C++ KVS can still read native format.
+        {
+            auto kvs_opt = KvsInstance::create(params);
+            if (!kvs_opt) {
+                throw std::runtime_error("Phase 4: failed to create KVS instance");
+            }
+            auto kvs = *kvs_opt;
+
+            const auto val = kvs->get_value("data_key");
+            if (!val.has_value()) {
+                throw std::runtime_error("Phase 4: data_key missing after interruption reload");
+            }
+            kvs_build_helpers::log_info(
+                "\"phase\":\"after_interruption\",\"key\":\"data_key\",\"value\":"
+                    + kvs_build_helpers::format_double_python(val.value()),
+                "cpp_test_scenarios::scenarios::persistency::reset_resistant");
+        }
+
+        // Normalize both snapshots to the Rust envelope format for Python assertions.
+        // Must run after Phase 4 so C++ KVS can load native format in Phases 3 and 4.
+        if (!KvsInstance::normalize_snapshot_file_to_rust_envelope(params)) {
+            throw std::runtime_error("failed to normalize snapshot_0");
+        }
+        if (!KvsInstance::normalize_snapshot_file_to_rust_envelope(params, 1U)) {
+            throw std::runtime_error("failed to normalize snapshot_1");
         }
     }
 };

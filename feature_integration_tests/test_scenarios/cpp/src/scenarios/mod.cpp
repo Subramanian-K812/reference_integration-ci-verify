@@ -28,6 +28,7 @@ Scenario::Ptr make_recovery_from_reset_multi_instance_scenario();
 Scenario::Ptr make_atomic_store_scenario();
 Scenario::Ptr make_atomic_store_no_partial_write_scenario();
 Scenario::Ptr make_atomic_store_multi_instance_scenario();
+Scenario::Ptr make_atomic_store_flush_failure_scenario();
 ScenarioGroup::Ptr supported_datatypes_group();
 ScenarioGroup::Ptr default_values_group();
 
@@ -48,6 +49,7 @@ ScenarioGroup::Ptr persistency_scenario_group() {
             make_atomic_store_scenario(),
             make_atomic_store_no_partial_write_scenario(),
             make_atomic_store_multi_instance_scenario(),
+            make_atomic_store_flush_failure_scenario(),
         },
         std::vector<ScenarioGroup::Ptr>{supported_datatypes_group(), default_values_group()});
 }

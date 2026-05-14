@@ -22,6 +22,7 @@ mod supported_datatypes;
 mod utf8_defaults;
 
 use atomic_store::AtomicStore;
+use atomic_store::AtomicStoreFlushFailure;
 use atomic_store::AtomicStoreMultiInstance;
 use atomic_store::AtomicStoreNoPartialWrite;
 use default_values::default_values_group;
@@ -55,6 +56,7 @@ pub fn persistency_group() -> Box<dyn ScenarioGroup> {
             Box::new(AtomicStore),
             Box::new(AtomicStoreNoPartialWrite),
             Box::new(AtomicStoreMultiInstance),
+            Box::new(AtomicStoreFlushFailure),
         ],
         vec![supported_datatypes_group(), default_values_group()],
     ))

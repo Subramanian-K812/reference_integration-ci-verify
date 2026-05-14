@@ -648,17 +648,23 @@ class TestMultiInstanceDefaultIsolation(FitScenario):
         }
 
     def test_instance_1_snapshot_isolation(self, results: ScenarioResult, temp_dir: Path) -> None:
-        """Instance 1 snapshot must contain key_a and must NOT contain key_b."""
+        """Instance 1 snapshot must contain key_a with the correct value and must NOT contain key_b."""
         assert results.return_code == ResultCode.SUCCESS
         snapshot1 = read_kvs_snapshot(temp_dir, 1)
         assert "key_a" in snapshot1, "key_a must be present in instance 1 snapshot"
+        assert isclose(float(snapshot1["key_a"]["v"]), 11.0, abs_tol=1e-4), (
+            f"key_a value in instance 1 snapshot expected ≈ 11.0, got {snapshot1['key_a']['v']}"
+        )
         assert "key_b" not in snapshot1, "key_b must not leak from instance 2 defaults into instance 1 snapshot"
 
     def test_instance_2_snapshot_isolation(self, results: ScenarioResult, temp_dir: Path) -> None:
-        """Instance 2 snapshot must contain key_b and must NOT contain key_a."""
+        """Instance 2 snapshot must contain key_b with the correct value and must NOT contain key_a."""
         assert results.return_code == ResultCode.SUCCESS
         snapshot2 = read_kvs_snapshot(temp_dir, 2)
         assert "key_b" in snapshot2, "key_b must be present in instance 2 snapshot"
+        assert isclose(float(snapshot2["key_b"]["v"]), 22.0, abs_tol=1e-4), (
+            f"key_b value in instance 2 snapshot expected ≈ 22.0, got {snapshot2['key_b']['v']}"
+        )
         assert "key_a" not in snapshot2, "key_a must not leak from instance 1 defaults into instance 2 snapshot"
 
     def test_snapshot_hash_matches_content(self, results: ScenarioResult, temp_dir: Path) -> None:

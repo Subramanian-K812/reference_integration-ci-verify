@@ -11,6 +11,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // *******************************************************************************
 
+#include "../../internals/persistency/kvs_build_helpers.h"
 #include "../../internals/persistency/kvs_instance.h"
 
 #include <scenario.hpp>
@@ -84,9 +85,29 @@ public:
             // Intentionally no flush — instance destroyed here.
         }
 
+        // Phase 3: re-open KVS from disk — must load Phase 1 value (50.0),
+        // proving that a post-reset boot recovers to the last-flushed state.
+        // Must run before normalization so C++ KVS can still read native format.
+        {
+            auto kvs_opt = KvsInstance::create(params);
+            if (!kvs_opt) {
+                throw std::runtime_error("Phase 3: failed to create KVS instance");
+            }
+            auto kvs = *kvs_opt;
+
+            const auto val = kvs->get_value("data_key");
+            if (!val.has_value()) {
+                throw std::runtime_error("Phase 3: data_key missing after reload");
+            }
+            kvs_build_helpers::log_info(
+                "\"phase\":\"reload\",\"key\":\"data_key\",\"value\":"
+                    + kvs_build_helpers::format_double_python(val.value()),
+                "cpp_test_scenarios::scenarios::persistency::recovery_from_reset");
+        }
+
         // Normalize snapshot_0 to the Rust envelope format for Python assertions.
-        // Must run after Phase 2 so that Phase 2's KVS::create() loads the native
-        // C++ snapshot rather than the transformed envelope.
+        // Must run after Phase 3 so that Phase 3's KvsInstance::create() loads
+        // from the native C++ format rather than the transformed envelope.
         if (!KvsInstance::normalize_snapshot_file_to_rust_envelope(params)) {
             throw std::runtime_error("Failed to normalize snapshot_0");
         }
@@ -199,7 +220,42 @@ public:
             // Intentionally no flush — instance destroyed here.
         }
 
-        // Normalize both snapshot files to the Rust envelope format.
+        // Phase 3: re-open both instances from disk — must load Phase 1 values
+        // (inst1_key=50.0, inst2_key=60.0), proving independent recovery.
+        // Must run before normalization so C++ KVS can still read native format.
+        {
+            auto kvs1_opt = KvsInstance::create(params1);
+            if (!kvs1_opt) {
+                throw std::runtime_error("Phase 3 Inst1: failed to create KVS instance");
+            }
+            auto kvs1 = *kvs1_opt;
+            const auto val1 = kvs1->get_value("inst1_key");
+            if (!val1.has_value()) {
+                throw std::runtime_error("Phase 3 Inst1: inst1_key missing after reload");
+            }
+            kvs_build_helpers::log_info(
+                "\"phase\":\"reload\",\"key\":\"inst1_key\",\"value\":"
+                    + kvs_build_helpers::format_double_python(val1.value()),
+                "cpp_test_scenarios::scenarios::persistency::recovery_from_reset_multi_instance");
+        }
+        {
+            auto kvs2_opt = KvsInstance::create(params2);
+            if (!kvs2_opt) {
+                throw std::runtime_error("Phase 3 Inst2: failed to create KVS instance");
+            }
+            auto kvs2 = *kvs2_opt;
+            const auto val2 = kvs2->get_value("inst2_key");
+            if (!val2.has_value()) {
+                throw std::runtime_error("Phase 3 Inst2: inst2_key missing after reload");
+            }
+            kvs_build_helpers::log_info(
+                "\"phase\":\"reload\",\"key\":\"inst2_key\",\"value\":"
+                    + kvs_build_helpers::format_double_python(val2.value()),
+                "cpp_test_scenarios::scenarios::persistency::recovery_from_reset_multi_instance");
+        }
+
+        // Normalize both snapshot files after Phase 3 so C++ KVS can still load
+        // native format in Phase 3 before the transformation.
         if (!KvsInstance::normalize_snapshot_file_to_rust_envelope(params1)) {
             throw std::runtime_error("Failed to normalize snapshot for instance 1");
         }

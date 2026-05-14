@@ -16,6 +16,7 @@
 
 #include <scenario.hpp>
 
+#include <filesystem>
 #include <stdexcept>
 #include <string>
 
@@ -331,4 +332,138 @@ public:
  */
 Scenario::Ptr make_atomic_store_multi_instance_scenario() {
     return std::make_shared<AtomicStoreMultiInstance>();
+}
+
+namespace {
+
+/**
+ * @brief Flush-failure atomicity: if flush() fails the on-disk snapshot must
+ *        still reflect the last successfully flushed state.
+ *
+ * Phase 1: Write key_a=10.0 and flush successfully (LKG snapshot on disk).
+ * Phase 2: Write key_a=99.0, revoke write permission on the storage directory
+ *          so flush() cannot create new snapshot files (the C++ KVS backend
+ *          uses an atomic temp-file + rename).  flush() must return failure.
+ *          Permissions are restored immediately after the call.
+ *          The on-disk snapshot must still hold 10.0 from Phase 1.
+ * Phase 3: Create a fresh KvsInstance (loads from disk) and read key_a.
+ *          Must return 10.0, proving the failed flush did not corrupt the
+ *          existing snapshot (atomic-on-failure guarantee).
+ *          A structured log with phase="reload" is emitted for Python assertions.
+ *
+ * Partially verifies: feat_req__persistency__atomic_store
+ */
+class AtomicStoreFlushFailure final : public Scenario {
+public:
+    /**
+     * @brief Return the scenario name used by the test runner.
+     * @return Scenario name string.
+     */
+    std::string name() const final {
+        return "atomic_store_flush_failure";
+    }
+
+    /**
+     * @brief Execute the flush-failure atomicity scenario.
+     * @param input JSON string containing kvs_parameters_1 with a 'dir' field.
+     */
+    void run(const std::string& input) const final {
+        KvsParameters params =
+            KvsParameters::from_json_section(input, "kvs_parameters_1");
+
+        if (!params.dir.has_value()) {
+            throw std::runtime_error("kvs_parameters_1 missing 'dir' field");
+        }
+        const std::filesystem::path dir{params.dir.value()};
+
+        // Phase 1: write key_a=10.0 and flush — establishes the LKG snapshot.
+        {
+            auto kvs_opt = KvsInstance::create(params);
+            if (!kvs_opt) {
+                throw std::runtime_error("Phase 1: failed to create KVS instance");
+            }
+            auto kvs = *kvs_opt;
+            if (!kvs->set_value("key_a", 10.0)) {
+                throw std::runtime_error("Phase 1: failed to set key_a");
+            }
+            if (!kvs->flush()) {
+                throw std::runtime_error("Phase 1: failed to flush");
+            }
+        }
+
+        // Phase 2: write key_a=99.0, revoke write permission on the storage
+        // directory so flush() cannot create new snapshot files (the C++ KVS
+        // backend uses an atomic temp-file + rename approach).  Permissions
+        // are restored immediately after the call regardless of outcome.
+        {
+            auto kvs_opt = KvsInstance::create(params);
+            if (!kvs_opt) {
+                throw std::runtime_error("Phase 2: failed to create KVS instance");
+            }
+            auto kvs = *kvs_opt;
+            if (!kvs->set_value("key_a", 99.0)) {
+                throw std::runtime_error("Phase 2: failed to set key_a");
+            }
+
+            // Revoke write permission on the storage directory.
+            std::filesystem::permissions(
+                dir,
+                std::filesystem::perms::owner_read
+                    | std::filesystem::perms::owner_exec
+                    | std::filesystem::perms::group_read
+                    | std::filesystem::perms::group_exec
+                    | std::filesystem::perms::others_read
+                    | std::filesystem::perms::others_exec,
+                std::filesystem::perm_options::replace);
+
+            const bool flush_ok = kvs->flush();
+
+            // Restore write permission regardless of flush outcome.
+            std::filesystem::permissions(
+                dir,
+                std::filesystem::perms::owner_all
+                    | std::filesystem::perms::group_read
+                    | std::filesystem::perms::group_exec
+                    | std::filesystem::perms::others_read
+                    | std::filesystem::perms::others_exec,
+                std::filesystem::perm_options::replace);
+
+            if (flush_ok) {
+                throw std::runtime_error(
+                    "Phase 2: flush() succeeded on a read-only directory — expected failure");
+            }
+        }
+
+        // Phase 3: create fresh KvsInstance (loads from disk) — must see 10.0.
+        {
+            auto kvs_opt = KvsInstance::create(params);
+            if (!kvs_opt) {
+                throw std::runtime_error("Phase 3: failed to create KVS instance");
+            }
+            auto kvs = *kvs_opt;
+
+            const auto val_a = kvs->get_value("key_a");
+            if (!val_a.has_value()) {
+                throw std::runtime_error("Phase 3: key_a missing after reload");
+            }
+            kvs_build_helpers::log_info(
+                "\"phase\":\"reload\",\"key\":\"key_a\",\"value\":"
+                    + kvs_build_helpers::format_double_python(val_a.value()),
+                "cpp_test_scenarios::scenarios::persistency::atomic_store_flush_failure");
+
+            if (!KvsInstance::normalize_snapshot_file_to_rust_envelope(params)) {
+                throw std::runtime_error("Phase 3: failed to normalize snapshot_0");
+            }
+        }
+    }
+};
+
+}  // namespace
+
+/**
+ * @brief Factory function for AtomicStoreFlushFailure scenario.
+ * @return Shared pointer to the constructed scenario.
+ */
+Scenario::Ptr make_atomic_store_flush_failure_scenario() {
+    return std::make_shared<AtomicStoreFlushFailure>();
 }

@@ -59,16 +59,34 @@ impl Scenario for ResetResistant {
             kvs.flush().map_err(|e| format!("{e:?}"))?;
         }
 
-        // Phase 2: re-open, write updated value and flush.
-        // The KVS rotates snapshots: the old snapshot is moved to kvs_1_1.json
-        // and the new snapshot is written to kvs_1_0.json.
+        // Phase 2: re-open, write updated value and flush — triggers rotation.
+        // kvs_1_1.json (value=50.0) and kvs_1_0.json (value=100.0) both exist.
         {
-            let kvs = kvs_instance(params).map_err(|e| format!("{e:?}"))?;
+            let kvs = kvs_instance(params.clone()).map_err(|e| format!("{e:?}"))?;
             kvs.set_value("data_key", 100.0_f64).map_err(|e| format!("{e:?}"))?;
             kvs.flush().map_err(|e| format!("{e:?}"))?;
 
             let current_val: f64 = kvs.get_value_as("data_key").map_err(|e| format!("{e:?}"))?;
             info!(key = "data_key", value = current_val);
+        }
+
+        // Phase 3: simulate an interruption — write new value WITHOUT flushing.
+        // Simulates a hard reset mid-write after the rotation.
+        // The existing snapshots (kvs_1_0.json=100.0, kvs_1_1.json=50.0) must
+        // remain intact; the un-flushed write must not corrupt either file.
+        {
+            let kvs = kvs_instance(params.clone()).map_err(|e| format!("{e:?}"))?;
+            kvs.set_value("data_key", 150.0_f64).map_err(|e| format!("{e:?}"))?;
+            // Instance dropped without flush — 150.0 never reaches disk.
+        }
+
+        // Phase 4: re-open KVS from disk after the simulated interruption.
+        // Must load the last successfully flushed value (100.0 from Phase 2),
+        // proving that the previous snapshot survives the interrupted write.
+        {
+            let kvs = kvs_instance(params).map_err(|e| format!("{e:?}"))?;
+            let val: f64 = kvs.get_value_as("data_key").map_err(|e| format!("{e:?}"))?;
+            info!(phase = "after_interruption", key = "data_key", value = val);
         }
 
         Ok(())

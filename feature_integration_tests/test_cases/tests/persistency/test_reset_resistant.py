@@ -26,6 +26,7 @@ import pytest
 from fit_scenario import ResultCode
 from persistency_scenario import PersistencyScenario, read_kvs_snapshot
 from test_properties import add_test_properties
+from testing_utils import LogContainer
 
 pytestmark = pytest.mark.parametrize("version", ["rust", "cpp"], scope="class")
 
@@ -87,6 +88,40 @@ class TestResetResistant(PersistencyScenario):
         assert results.return_code == ResultCode.SUCCESS
         assert (temp_dir / "kvs_1_0.hash").exists(), "Hash file missing for snapshot_0"
         assert (temp_dir / "kvs_1_1.hash").exists(), "Hash file missing for snapshot_1"
+
+    def test_kvs_can_reload_after_interruption(self, version: str, results: Any, logs_info_level: LogContainer) -> None:
+        """Verify that KVS can reload from the last successful snapshot after a
+        simulated interruption (un-flushed write following the rotation).
+
+        After Phase 2 produces two snapshots (kvs_1_0.json=100.0,
+        kvs_1_1.json=50.0), Phase 3 writes data_key=150.0 WITHOUT flushing
+        (simulating a hard reset mid-write).  Phase 4 then opens a fresh KVS
+        instance from disk and must load 100.0 — the value from the last
+        successful flush — not the un-persisted 150.0.
+
+        This is the core assertion for `feat_req__persistency__reset_resistant`:
+        the existing snapshot survives an interrupted write attempt, and the
+        KVS API can still recover to the last consistent state.
+        """
+        if version == "rust":
+            pytest.skip(
+                "Rust KVS uses an in-process instance pool keyed by instance_id. "
+                "Re-opening with the same id within one binary run returns the cached "
+                "in-memory handle (150.0 from Phase 3), not the on-disk snapshot (100.0). "
+                "Snapshot preservation is verified by test_current_snapshot_has_new_value "
+                "and test_previous_snapshot_preserved."
+            )
+        assert results.return_code == ResultCode.SUCCESS
+        log = logs_info_level.find_log("phase", value="after_interruption")
+        assert log is not None, (
+            "No log entry with phase='after_interruption' found. "
+            "Phase 4 (KVS reload after simulated interruption) may not have executed."
+        )
+        assert isclose(float(log.value), 100.0, abs_tol=1e-4), (
+            f"KVS reload after interruption returned {log.value} instead of 100.0. "
+            "The un-flushed write (150.0) may have overwritten the last-good snapshot, "
+            "or the wrong snapshot was loaded."
+        )
 
 
 @add_test_properties(

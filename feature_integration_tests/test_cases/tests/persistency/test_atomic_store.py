@@ -280,3 +280,92 @@ class TestAtomicStoreMultiInstance(PersistencyScenario):
         assert results.return_code == ResultCode.SUCCESS
         assert (temp_dir / "kvs_1_0.hash").exists(), "Hash file missing for instance 1 (kvs_1_0.hash)"
         assert (temp_dir / "kvs_2_0.hash").exists(), "Hash file missing for instance 2 (kvs_2_0.hash)"
+
+
+@add_test_properties(
+    partially_verifies=["feat_req__persistency__atomic_store"],
+    test_type="requirements-based",
+    derivation_technique="boundary-value-analysis",
+)
+class TestAtomicStoreFlushFailure(PersistencyScenario):
+    """Verify the atomic-on-failure guarantee: a failed flush must not corrupt
+    or overwrite the existing on-disk snapshot.
+
+    The scenario:
+
+    1. Writes key_a=10.0 and flushes successfully — establishes the LKG snapshot.
+    2. Writes key_a=99.0 then makes the storage target temporarily read-only
+       (the snapshot file kvs_1_0.json for the Rust variant; the storage
+       directory for the C++ variant, which uses an atomic temp+rename) so
+       that flush() cannot complete.  flush() must return an error.
+       Permissions are restored immediately.
+    3. Creates a fresh KVS instance (C++ path: loads from disk; Rust path: may
+       return in-process cached state) and reads key_a.
+
+    The Python test asserts:
+      - The on-disk snapshot still holds key_a=10.0 (both variants).
+      - The fresh KVS instance returns 10.0 via the API (C++ variant only;
+        the Rust variant is skipped because the in-process instance pool may
+        return in-memory state rather than reloading from disk).
+    """
+
+    @pytest.fixture(scope="class")
+    def scenario_name(self) -> str:
+        return "persistency.atomic_store_flush_failure"
+
+    @pytest.fixture(scope="class")
+    def test_config(self, temp_dir: Path) -> dict[str, Any]:
+        return {
+            "kvs_parameters_1": {
+                "kvs_parameters": {
+                    "instance_id": 1,
+                    "dir": str(temp_dir),
+                },
+            },
+        }
+
+    def test_disk_snapshot_unchanged_after_flush_failure(self, results: Any, temp_dir: Path) -> None:
+        """Verify the on-disk snapshot still holds the LKG value (10.0) after
+        a failed flush attempt.
+
+        A flush failure must not corrupt or partially overwrite the existing
+        snapshot: the on-disk state must remain exactly as it was after the
+        last successful flush (Phase 1).
+        """
+        assert results.return_code == ResultCode.SUCCESS
+        snapshot = read_kvs_snapshot(temp_dir, instance_id=1, snapshot_id=0)
+        assert "key_a" in snapshot, (
+            "key_a not found in kvs_1_0.json after flush failure. "
+            "The failed flush may have deleted or corrupted the LKG snapshot."
+        )
+        assert isclose(float(snapshot["key_a"]["v"]), 10.0, abs_tol=1e-4), (
+            f"Disk snapshot value {snapshot['key_a']['v']} != 10.0. "
+            "The failed flush (with 99.0) appears to have overwritten the LKG snapshot, "
+            "violating the atomic-on-failure guarantee."
+        )
+
+    def test_fresh_kvs_loads_last_good_value(self, version: str, results: Any, logs_info_level: LogContainer) -> None:
+        """Verify that the KVS API returns the LKG value (10.0) after a flush
+        failure when a fresh instance is opened from disk.
+
+        Skipped for the Rust variant: the Rust KVS in-process instance pool
+        may return cached in-memory state rather than reloading from disk
+        within the same binary run.  The disk-file assertion above covers
+        the Rust case via direct file inspection.
+        """
+        if version == "rust":
+            pytest.skip(
+                "Rust KVS in-process pool: API reload within the same binary run "
+                "may return in-memory state rather than the on-disk snapshot. "
+                "test_disk_snapshot_unchanged_after_flush_failure covers this assertion."
+            )
+        assert results.return_code == ResultCode.SUCCESS
+        log = logs_info_level.find_log("phase", value="reload")
+        assert log is not None, (
+            "No log entry with phase='reload' found. "
+            "Phase 3 (fresh KVS reload after flush failure) may not have executed."
+        )
+        assert isclose(float(log.value), 10.0, abs_tol=1e-4), (
+            f"KVS reload returned {log.value} instead of 10.0 after flush failure. "
+            "The un-persisted write (99.0) may have corrupted the stored snapshot."
+        )

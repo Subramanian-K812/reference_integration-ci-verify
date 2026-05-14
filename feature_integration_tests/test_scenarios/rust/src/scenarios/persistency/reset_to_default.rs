@@ -21,7 +21,6 @@ use tracing::info;
 pub struct TestInput {
     keys: Vec<String>,
     override_values: Vec<f64>,
-    default_values: Vec<f64>,
 }
 
 impl TestInput {
@@ -40,30 +39,31 @@ impl Scenario for ResetToDefault {
 
     fn run(&self, input: &str) -> Result<(), String> {
         // Parse parameters
-        let v: Value = serde_json::from_str(input).expect("Failed to parse input string");
-        let params = KvsParameters::from_value(&v["kvs_parameters_1"]).expect("Failed to parse parameters");
-        let test_input = TestInput::from_json(input).expect("Failed to parse test input");
+        let v: Value = serde_json::from_str(input).map_err(|e| format!("Failed to parse input string: {e}"))?;
+        let params = KvsParameters::from_value(&v["kvs_parameters_1"])
+            .map_err(|e| format!("Failed to parse KVS parameters: {e}"))?;
+        let test_input = TestInput::from_json(input)?;
 
         // Create KVS with Optional mode - defaults should be loaded
-        let kvs = kvs_instance(params).expect("Failed to create KVS instance");
+        let kvs = kvs_instance(params).map_err(|e| format!("Failed to create KVS instance: {e:?}"))?;
 
         // Override all keys with new values
         for (i, key) in test_input.keys.iter().enumerate() {
             kvs.set_value(key, test_input.override_values[i])
-                .expect("Failed to override value");
+                .map_err(|e| format!("Failed to override value for '{key}': {e:?}"))?;
         }
 
-        // Reset key2 (index 1) using remove_key — reverts to default in memory
-        kvs.remove_key(&test_input.keys[1]).expect("Failed to remove key");
+        // Reset key2 (index 1) using reset_key — reverts the key to its
+        // configured default without deleting it from the defaults registry.
+        // After reset_key, get_value_as must return the default value.
+        kvs.reset_key(&test_input.keys[1]).map_err(|e| format!("{e:?}"))?;
 
         // Log the default value reported by KVS after reset so Python can assert it.
-        let default_val: f64 = kvs
-            .get_value_as(&test_input.keys[1])
-            .expect("Failed to read default value after reset");
+        let default_val: f64 = kvs.get_value_as(&test_input.keys[1]).map_err(|e| format!("{e:?}"))?;
         info!(key = "key2", value = default_val, source = "default_after_reset");
 
         // Flush to persist the state: key1 and key3 with overrides, key2 absent
-        kvs.flush().expect("Failed to flush KVS");
+        kvs.flush().map_err(|e| format!("Failed to flush KVS: {e:?}"))?;
 
         Ok(())
     }
