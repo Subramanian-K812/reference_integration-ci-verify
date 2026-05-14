@@ -21,6 +21,7 @@ use tracing::info;
 pub struct TestInput {
     keys: Vec<String>,
     override_values: Vec<f64>,
+    default_values: Vec<f64>,
 }
 
 impl TestInput {

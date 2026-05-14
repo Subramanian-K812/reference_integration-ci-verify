@@ -11,8 +11,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # *******************************************************************************
 import shutil
-from collections.abc import Generator
 from pathlib import Path
+from typing import Generator
 
 import pytest
 from testing_utils import (

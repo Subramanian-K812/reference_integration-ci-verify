@@ -23,9 +23,14 @@ from typing import Any
 
 import pytest
 from fit_scenario import ResultCode
-from persistency_scenario import PersistencyScenario, create_kvs_defaults_file, read_kvs_snapshot
+from persistency_scenario import (
+    PersistencyScenario,
+    create_kvs_defaults_file,
+    read_kvs_snapshot,
+    verify_kvs_snapshot_hash,
+)
 from test_properties import add_test_properties
-from testing_utils import LogContainer, ScenarioResult
+from testing_utils import ScenarioResult
 
 pytestmark = pytest.mark.parametrize("version", ["rust", "cpp"], scope="class")
 
@@ -91,6 +96,11 @@ class TestAllTypesWithUtf8Keys(PersistencyScenario):
 
         assert snapshot["ascii_null"]["t"] == "null"
         assert snapshot["ascii_null"]["v"] is None
+
+    def test_snapshot_hash_matches_content(self, results: ScenarioResult, temp_dir: Path) -> None:
+        """Verify the hash file matches the Adler-32 of the snapshot JSON after normalization."""
+        assert results.return_code == ResultCode.SUCCESS
+        verify_kvs_snapshot_hash(temp_dir, instance_id=1, snapshot_id=0)
 
 
 # ---------------------------------------------------------------------------
@@ -164,7 +174,12 @@ class TestPartialOverrideSnapshot(PersistencyScenario):
         assert "partial_key_0" not in snapshot, "Default-only key partial_key_0 must be absent from snapshot"
         assert "partial_key_2" not in snapshot, "Default-only key partial_key_2 must be absent from snapshot"
 
-    def test_default_values_accessible(self, results: ScenarioResult, logs_info_level: LogContainer) -> None:
+    def test_snapshot_hash_matches_content(self, results: ScenarioResult, temp_dir: Path) -> None:
+        """Verify the hash file matches the Adler-32 of the snapshot JSON after normalization."""
+        assert results.return_code == ResultCode.SUCCESS
+        verify_kvs_snapshot_hash(temp_dir, instance_id=1, snapshot_id=0)
+
+    def test_default_values_accessible(self, results: ScenarioResult, logs_info_level: Any) -> None:
         """
         Verify that the default values for partial_key_0 and partial_key_2 are
         accessible via get_value even though they were never explicitly written.
@@ -276,7 +291,12 @@ class TestUtf8KeysWithDefaults(PersistencyScenario):
             f"Default-only Greek key '{self._KEY_GREEK}' must be absent from snapshot"
         )
 
-    def test_utf8_default_values_accessible(self, results: ScenarioResult, logs_info_level: LogContainer) -> None:
+    def test_snapshot_hash_matches_content(self, results: ScenarioResult, temp_dir: Path) -> None:
+        """Verify the hash file matches the Adler-32 of the snapshot JSON after normalization."""
+        assert results.return_code == ResultCode.SUCCESS
+        verify_kvs_snapshot_hash(temp_dir, instance_id=1, snapshot_id=0)
+
+    def test_utf8_default_values_accessible(self, results: ScenarioResult, logs_info_level: Any) -> None:
         """
         Verify that default values behind UTF-8 ASCII and Greek keys are accessible
         via get_value even though they were never explicitly written.
@@ -353,3 +373,8 @@ class TestUtf8DefaultValueGet(PersistencyScenario):
         assert isclose(snapshot["result_key"]["v"], self._GET_DEFAULT_VALUE, abs_tol=1e-4), (
             f"Expected probe key value ≈ {self._GET_DEFAULT_VALUE}, got {snapshot['result_key']['v']}"
         )
+
+    def test_snapshot_hash_matches_content(self, results: ScenarioResult, temp_dir: Path) -> None:
+        """Verify the hash file matches the Adler-32 of the snapshot JSON after normalization."""
+        assert results.return_code == ResultCode.SUCCESS
+        verify_kvs_snapshot_hash(temp_dir, instance_id=1, snapshot_id=0)
