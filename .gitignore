@@ -28,3 +28,6 @@ __pycache__/
 /.gita-workspace.csv
 /build
 artifacts
+
+# QNX 7.1 SDP extracted tree — large proprietary binaries, must NOT be committed.
+third_party/qnx710/archive_root/

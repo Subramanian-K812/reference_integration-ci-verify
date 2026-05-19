@@ -340,8 +340,7 @@ def _impl(ctx):
                 env_entries = [
                     env_entry(key = "QNX_HOST", value = "/proc/self/cwd/" + ctx.file.host_dir.path),
                     env_entry(key = "QNX_TARGET", value = "/proc/self/cwd/" + ctx.file.target_dir.path),
-                    env_entry(key = "QNX_CONFIGURATION", value = "/home/quan/.qnx"),
-                    env_entry(key = "QNX_CONFIGURATION_EXCLUSIVE", value = "/home/quan/.qnx"),
+                    env_entry(key = "QNX_CONFIGURATION_EXCLUSIVE", value = "/var/tmp/.qnx"),
                     env_entry(key = "QNX_SHARED_LICENSE_FILE", value = "%{license_path}"),
                 ],
             ),

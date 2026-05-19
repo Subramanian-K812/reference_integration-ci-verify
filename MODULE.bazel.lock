@@ -8621,19 +8621,12 @@
     },
     "@@score_bazel_cpp_toolchains+//extensions:gcc.bzl%gcc": {
       "general": {
-        "bzlTransitiveDigest": "03DwhHzj+epcMC3wuJsbmGFHwVCPZMckrN5WEgCTUJI=",
-        "usagesDigest": "usZHBcibNI1FE5b4i/xtwNICcrdkCiAi8GTrCBBEvA4=",
+        "bzlTransitiveDigest": "e2MKGV0MBoIO4L8I2yzjOpPolVPoIAIojWl6zRAQn88=",
+        "usagesDigest": "YPw3E3a8LG9hvZn0FipD0sMdzV92HojDIogJwCmit0A=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
         "generatedRepoSpecs": {
-          "score_qcc_aarch64_toolchain_pkg": {
-            "repoRuleId": "@@bazel_tools//tools/build_defs/repo:local.bzl%new_local_repository",
-            "attributes": {
-              "path": "/home/quan/proAI/reference_integration/third_party/qnx710/archive_root/qnx710_sdp",
-              "build_file": "@@//third_party/qnx710:qnx710_sdp.BUILD"
-            }
-          },
           "score_gcc_x86_64_toolchain_pkg": {
             "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_archive",
             "attributes": {
@@ -8663,8 +8656,19 @@
                 "https://github.com/eclipse-score/inc_os_autosd/releases/download/continuous/autosd-toolchain-x86_64.tar.gz"
               ],
               "build_file": "@@score_bazel_cpp_toolchains+//packages/linux/x86_64/autosd/10.0:autosd.BUILD",
-              "sha256": "bb5324ec04895eb70b1fcb1787d25856b137962b0381d11f5b3406c37ee15984",
+              "sha256": "525dcca237dfdff3d6c8f3650a0db77a93638141e8c91252544b37447ef9108c",
               "strip_prefix": "sysroot"
+            }
+          },
+          "score_qcc_aarch64_toolchain_pkg": {
+            "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_archive",
+            "attributes": {
+              "urls": [
+                "https://github.com/qorix-group/bazel_cpp_toolchains/releases/download/v0.1.0/qnx710_sdp.tar.gz"
+              ],
+              "build_file": "@@score_bazel_cpp_toolchains+//packages/qnx/aarch64/sdp/7.1.0:sdp.BUILD",
+              "sha256": "f8962eea151d641603de83e7731d40d17473e1321bdad320a5baebb908d13dc5",
+              "strip_prefix": "qnx710_sdp"
             }
           },
           "score_qcc_x86_64_toolchain_pkg": {
@@ -8690,7 +8694,6 @@
               "license_path": "/opt/score_qnx/license/licenses",
               "sdk_version": "",
               "sdp_version": "",
-              "tc_compiler_library_search_paths": [],
               "tc_cpu": "x86_64",
               "tc_identifier": "gcc_12.2.0",
               "tc_os": "linux",
@@ -8764,10 +8767,6 @@
               "license_path": "/opt/score_qnx/license/licenses",
               "sdk_version": "0.1.0",
               "sdp_version": "",
-              "tc_compiler_library_search_paths": [
-                "external/%{toolchain_pkg}%/usr/lib/x86_64-linux-gnu",
-                "external/%{toolchain_pkg}%/lib/x86_64-linux-gnu"
-              ],
               "tc_cpu": "aarch64",
               "tc_identifier": "sdk_0.1.0",
               "tc_os": "linux",
@@ -8828,7 +8827,6 @@
               "license_path": "/opt/score_qnx/license/licenses",
               "sdk_version": "",
               "sdp_version": "",
-              "tc_compiler_library_search_paths": [],
               "tc_cpu": "x86_64",
               "tc_identifier": "",
               "tc_os": "linux",
@@ -8853,7 +8851,6 @@
               "license_path": "/opt/score_qnx/license/licenses",
               "sdk_version": "",
               "sdp_version": "7.1.0",
-              "tc_compiler_library_search_paths": [],
               "tc_cpu": "aarch64",
               "tc_identifier": "sdp_7.1.0",
               "tc_os": "qnx",
@@ -8878,7 +8875,6 @@
               "license_path": "/opt/score_qnx/license/licenses",
               "sdk_version": "",
               "sdp_version": "8.0.0",
-              "tc_compiler_library_search_paths": [],
               "tc_cpu": "x86_64",
               "tc_identifier": "sdp_8.0.0",
               "tc_os": "qnx",
@@ -8914,7 +8910,7 @@
     "@@score_rules_imagefs+//extensions:imagefs.bzl%imagefs": {
       "general": {
         "bzlTransitiveDigest": "xJRMfKyb9krj7tW8mc7qHSmndlgVIywefmDXwdvj7kQ=",
-        "usagesDigest": "HAMbbsLPIFbgWC/vpmbYso1wwPxb5UhRaPbbtKkyFK4=",
+        "usagesDigest": "S5umMt/uQZveIRTJQR3C+etJYYrDr3YhiPWYgBQg5Pc=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
@@ -8934,7 +8930,7 @@
             "attributes": {
               "tc_cpu": "aarch64",
               "tc_os": "qnx",
-              "tc_pkg_repo": "'@@+_repo_rules3+qnx710_sdp'",
+              "tc_pkg_repo": "'@@score_bazel_cpp_toolchains++gcc+score_qcc_aarch64_toolchain_pkg'",
               "sdp_version": "7.1.0",
               "tc_type": "ifs"
             }
@@ -8943,8 +8939,8 @@
         "recordedRepoMappingEntries": [
           [
             "",
-            "qnx710_sdp",
-            "+_repo_rules3+qnx710_sdp"
+            "score_qcc_aarch64_toolchain_pkg",
+            "score_bazel_cpp_toolchains++gcc+score_qcc_aarch64_toolchain_pkg"
           ],
           [
             "",

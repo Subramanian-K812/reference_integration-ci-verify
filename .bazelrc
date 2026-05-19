@@ -45,15 +45,29 @@ build:qnx-x86_64 --extra_toolchains=@score_qcc_x86_64_toolchain//:x86_64-qnx-sdp
 build:qnx-x86_64 --extra_toolchains=@score_qnx_x86_64_ifs_toolchain//:ifs-x86_64-qnx-sdp_8.0.0
 build:qnx-x86_64 --extra_toolchains=@score_toolchains_rust//toolchains/ferrocene:ferrocene_x86_64_pc_nto_qnx800
 
-# ─── QNX aarch64 cross-compilation config ────────────────────────────────────
+# ─── QNX aarch64 cross-compilation config (QNX 8.0) ─────────────────────────
 # Usage: bazel build --config=qnx-aarch64 //target
 build:qnx-aarch64 --config=_common
 build:qnx-aarch64 --config=_qnx_common
-build:qnx-aarch64 --action_env=QNXLM_LICENSE_FILE
-build:qnx-aarch64 --sandbox_writable_path=/var/tmp
-build:qnx-aarch64 --platforms=@score_bazel_platforms//:aarch64-qnx-sdp_7.1.0-posix
-build:qnx-aarch64 --extra_toolchains=@score_qcc_aarch64_toolchain//:aarch64-qnx-sdp_7.1.0
+build:qnx-aarch64 --platforms=@score_bazel_platforms//:aarch64-qnx-sdp_8.0.0-posix
+build:qnx-aarch64 --extra_toolchains=@score_qcc_aarch64_toolchain//:aarch64-qnx-sdp_8.0.0
 build:qnx-aarch64 --extra_toolchains=@score_toolchains_rust//toolchains/ferrocene:ferrocene_aarch64_unknown_nto_qnx800
+build:qnx-aarch64 --extra_toolchains=@score_qnx_aarch64_ifs_toolchain//:ifs-aarch64-qnx-sdp_8.0.0
+
+# ─── QNX 7.1 aarch64 cross-compilation config (ProAI 8650) ───────────────────
+# Usage: bazel build --config=qnx71-aarch64 //target
+# Note: QNXLM_LICENSE_FILE must be set to the FLEXlm license file path or
+#       floating license server address before building, e.g.:
+#         export QNXLM_LICENSE_FILE=/path/to/license.dat   # local file
+#         export QNXLM_LICENSE_FILE=5054@license-server    # floating server
+#       The --action_env flag forwards this variable into Bazel sandbox actions.
+build:qnx71-aarch64 --config=_common
+build:qnx71-aarch64 --config=_qnx_common
+build:qnx71-aarch64 --action_env=QNXLM_LICENSE_FILE
+build:qnx71-aarch64 --sandbox_writable_path=/var/tmp
+build:qnx71-aarch64 --platforms=@score_bazel_platforms//:aarch64-qnx-sdp_7.1.0-posix
+build:qnx71-aarch64 --extra_toolchains=@score_qcc_aarch64_toolchain//:aarch64-qnx-sdp_7.1.0
+build:qnx71-aarch64 --extra_toolchains=@score_toolchains_rust//toolchains/ferrocene:ferrocene_aarch64_unknown_nto_qnx800
 
 
 build:linux-x86_64 --config=_common

@@ -56,7 +56,7 @@ filegroup(
 
 filegroup(
     name = "target_all",
-    srcs = glob(["target/qnx7/**/*"]),
+    srcs = glob(["target/qnx7/**/*"], allow_empty = True),
 )
 
 filegroup(
