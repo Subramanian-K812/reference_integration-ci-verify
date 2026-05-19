@@ -16,9 +16,10 @@ module(
     compatibility_level = 0,
 )
 
-local_path_override(
+git_override(
     module_name = "score_bazel_cpp_toolchains",
-    path = "third_party/score_bazel_cpp_toolchains",
+    remote = "https://github.com/qorix-group/bazel_cpp_toolchains.git",
+    commit = "9138a55ebab8d4e895fd7f20c3650943a6f35b91",
 )
 
 # Include common modules

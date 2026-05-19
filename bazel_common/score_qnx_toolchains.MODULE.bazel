@@ -13,8 +13,8 @@
 qcc = use_extension("@score_bazel_cpp_toolchains//extensions:gcc.bzl", "gcc", dev_dependency = True)
 qcc.sdp(
     name = "score_qcc_aarch64_toolchain_pkg",
-    build_file = "//third_party/qnx710:qnx710_sdp.BUILD",
-    local_path = "/home/quan/proAI/reference_integration/third_party/qnx710/archive_root/qnx710_sdp",
+    sdp_version = "7.1.0",
+    use_default_package = True,
 )
 qcc.toolchain(
     name = "score_qcc_aarch64_toolchain",
