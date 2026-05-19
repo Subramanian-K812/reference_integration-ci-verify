@@ -8622,7 +8622,7 @@
     "@@score_bazel_cpp_toolchains+//extensions:gcc.bzl%gcc": {
       "general": {
         "bzlTransitiveDigest": "e2MKGV0MBoIO4L8I2yzjOpPolVPoIAIojWl6zRAQn88=",
-        "usagesDigest": "YPw3E3a8LG9hvZn0FipD0sMdzV92HojDIogJwCmit0A=",
+        "usagesDigest": "pqEsHytctvQUSb+Yi1MoVXe8r3ViywZB4zjnUGAHejk=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
@@ -8661,6 +8661,17 @@
             }
           },
           "score_qcc_aarch64_toolchain_pkg": {
+            "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_archive",
+            "attributes": {
+              "urls": [
+                "https://www.qnx.com/download/download/79858/installation.tgz"
+              ],
+              "build_file": "@@score_bazel_cpp_toolchains+//packages/qnx/aarch64/sdp/8.0.0:sdp.BUILD",
+              "sha256": "f2e0cb21c6baddbcb65f6a70610ce498e7685de8ea2e0f1648f01b327f6bac63",
+              "strip_prefix": "installation"
+            }
+          },
+          "score_qcc_aarch64_qnx71_toolchain_pkg": {
             "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_archive",
             "attributes": {
               "urls": [
@@ -8846,6 +8857,30 @@
               "extra_c_compile_flags": [],
               "extra_cxx_compile_flags": [],
               "extra_link_flags": [],
+              "license_info_variable": "",
+              "license_info_value": "",
+              "license_path": "/opt/score_qnx/license/licenses",
+              "sdk_version": "",
+              "sdp_version": "8.0.0",
+              "tc_cpu": "aarch64",
+              "tc_identifier": "sdp_8.0.0",
+              "tc_os": "qnx",
+              "tc_pkg_repo": "score_qcc_aarch64_toolchain_pkg",
+              "tc_system_toolchain": false,
+              "tc_runtime_ecosystem": "",
+              "gcc_version": "12.2.0",
+              "cc_toolchain_config": "@@score_bazel_cpp_toolchains+//templates/qnx:cc_toolchain_config.bzl.template",
+              "cc_toolchain_flags": "@@score_bazel_cpp_toolchains+//templates/qnx:cc_toolchain_flags.bzl.template",
+              "use_base_constraints_only": false
+            }
+          },
+          "score_qcc_aarch64_qnx71_toolchain": {
+            "repoRuleId": "@@score_bazel_cpp_toolchains+//rules:gcc.bzl%gcc_toolchain",
+            "attributes": {
+              "extra_compile_flags": [],
+              "extra_c_compile_flags": [],
+              "extra_cxx_compile_flags": [],
+              "extra_link_flags": [],
               "license_info_variable": "QNXLM_LICENSE_FILE",
               "license_info_value": "",
               "license_path": "/opt/score_qnx/license/licenses",
@@ -8854,7 +8889,7 @@
               "tc_cpu": "aarch64",
               "tc_identifier": "sdp_7.1.0",
               "tc_os": "qnx",
-              "tc_pkg_repo": "score_qcc_aarch64_toolchain_pkg",
+              "tc_pkg_repo": "score_qcc_aarch64_qnx71_toolchain_pkg",
               "tc_system_toolchain": false,
               "tc_runtime_ecosystem": "",
               "gcc_version": "8.3.0",
@@ -8910,7 +8945,7 @@
     "@@score_rules_imagefs+//extensions:imagefs.bzl%imagefs": {
       "general": {
         "bzlTransitiveDigest": "xJRMfKyb9krj7tW8mc7qHSmndlgVIywefmDXwdvj7kQ=",
-        "usagesDigest": "S5umMt/uQZveIRTJQR3C+etJYYrDr3YhiPWYgBQg5Pc=",
+        "usagesDigest": "HFFq7ImAQ5C73CC4qNgL9nKYNaI9gg64UIwBpK93XNg=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
@@ -8931,7 +8966,7 @@
               "tc_cpu": "aarch64",
               "tc_os": "qnx",
               "tc_pkg_repo": "'@@score_bazel_cpp_toolchains++gcc+score_qcc_aarch64_toolchain_pkg'",
-              "sdp_version": "7.1.0",
+              "sdp_version": "8.0.0",
               "tc_type": "ifs"
             }
           }
