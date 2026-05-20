@@ -1,5 +1,0 @@
-
-{
-    "name": "eclipse-s-core",
-    "image": "ghcr.io/eclipse-score/devcontainer:v1.2.0"
-}
