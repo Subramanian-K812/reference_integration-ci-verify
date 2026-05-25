@@ -38,12 +38,11 @@ index 563dd0df..eaf4c2fd 100644
              builder = builder.clang_arg(format!("--sysroot={sysroot}"));
              builder = builder.clang_arg(format!("-I{sysroot}/usr/include"));
              builder = builder.clang_arg(format!("-I{sysroot}/usr/include/c++/v1"));
-@@ -92,4 +114,21 @@ fn main() {
--        }
+@@ -92,6 +114,19 @@ fn main() {
+         } else {
+             panic!("QNX_TARGET environment variable not set for QNX build")
+         }
 -    }
-+        } else {
-+            panic!("QNX_TARGET environment variable not set for QNX build")
-+        }
 +        // System clang may not support QNX target triples (e.g. Ubuntu clang is
 +        // built without the NTO backend). Override the target to a generic Linux
 +        // triple so bindgen can parse the QNX sysroot headers using the defines
