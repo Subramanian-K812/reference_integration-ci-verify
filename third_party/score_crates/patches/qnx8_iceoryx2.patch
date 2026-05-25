@@ -38,6 +38,30 @@ index 563dd0df..eaf4c2fd 100644
              builder = builder.clang_arg(format!("--sysroot={sysroot}"));
              builder = builder.clang_arg(format!("-I{sysroot}/usr/include"));
              builder = builder.clang_arg(format!("-I{sysroot}/usr/include/c++/v1"));
+@@ -92,4 +114,21 @@ fn main() {
+-        }
+-    }
++        } else {
++            panic!("QNX_TARGET environment variable not set for QNX build")
++        }
++        // System clang may not support QNX target triples (e.g. Ubuntu clang is
++        // built without the NTO backend). Override the target to a generic Linux
++        // triple so bindgen can parse the QNX sysroot headers using the defines
++        // already applied above, while still accepting the command.
++        let host_triple = if target_arch == "x86_64" {
++            "x86_64-pc-linux-gnu"
++        } else {
++            "aarch64-unknown-linux-gnu"
++        };
++        builder = builder.clang_arg(format!("--target={}", host_triple));
++        // Remove Linux-specific macros injected by the Linux target triple so
++        // they do not interfere with QNX-specific header guards.
++        builder = builder.clang_arg("-U__linux__");
++        builder = builder.clang_arg("-U__linux");
++        builder = builder.clang_arg("-U__gnu_linux__");
++    }
+ 
+     let bindings = builder.generate().expect("Unable to generate bindings");
 diff --git src/qnx/types.rs src/qnx/types.rs
 index 290e97a4..c9b4ff62 100644
 --- src/qnx/types.rs

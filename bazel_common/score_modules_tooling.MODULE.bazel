@@ -15,10 +15,9 @@
 # Do not edit manually - use scripts/known_good/update_module_from_known_good.py
 
 bazel_dep(name = "score_crates")
-git_override(
+local_path_override(
     module_name = "score_crates",
-    remote = "https://github.com/qorix-group/score-crates.git",
-    commit = "8f29fa594ecc516e6a3041df2a4c1c163514fdf8",
+    path = "third_party/score_crates",
 )
 
 bazel_dep(name = "score_itf")
