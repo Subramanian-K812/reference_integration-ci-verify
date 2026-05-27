@@ -17,8 +17,8 @@
 bazel_dep(name = "score_crates")
 git_override(
     module_name = "score_crates",
+    commit = "8f29fa594ecc516e6a3041df2a4c1c163514fdf8",
     remote = "https://github.com/qorix-group/score-crates.git",
-    commit = "2fbf651cea3932b3a8df7563c7a995475da8063e",
 )
 
 bazel_dep(name = "score_itf")
