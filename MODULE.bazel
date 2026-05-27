@@ -18,8 +18,8 @@ module(
 
 git_override(
     module_name = "score_bazel_cpp_toolchains",
-    remote = "https://github.com/qorix-group/bazel_cpp_toolchains.git",
     commit = "9a9f063d63baf15cf634d7461968b55fa1850747",
+    remote = "https://github.com/qorix-group/bazel_cpp_toolchains.git",
 )
 
 # Include common modules

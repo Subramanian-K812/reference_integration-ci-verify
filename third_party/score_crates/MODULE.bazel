@@ -371,7 +371,7 @@ crate.from_specs(
     ],
 )
 crate.render_config(
-    repositories = ["crate_index"],
     generate_cargo_toml_env_vars = False,
+    repositories = ["crate_index"],
 )
 use_repo(crate, "crate_index")
