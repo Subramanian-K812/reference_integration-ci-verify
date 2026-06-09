@@ -17,9 +17,15 @@ score_pkg_bundle(
     bins = ["//showcases/cli"],
     other_package_files = [
         "//showcases/standalone:comm_pkg_files",
+        "//showcases/standalone:comm_rust_pkg_files",
         "//showcases/standalone:kyron_pkg_files",
+        "//showcases/standalone:orchestrator_pkg_files",
+        "//showcases/standalone:persistency_pkg_files",
+        "//showcases/standalone:logging_rust_pkg_files",
         "//showcases/orchestration_persistency:orch_per_pkg_files",
+        "//showcases/orchestrator_ipc:orchestrator_ipc_pkg_files",
         "//showcases/simple_lifecycle:simple_lifecycle_pkg_files",
+        "//showcases/full_stack:full_stack_pkg_files",
     ],
     package_dir = "showcases",
 )

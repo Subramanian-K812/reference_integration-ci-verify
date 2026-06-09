@@ -1,0 +1,14 @@
+diff --git a/score/mw/com/example/com-api-example/BUILD b/score/mw/com/example/com-api-example/BUILD
+index 8ef18b6b..b2c4e7e1 100644
+--- a/score/mw/com/example/com-api-example/BUILD
++++ b/score/mw/com/example/com-api-example/BUILD
+@@ -14,5 +14,9 @@ load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_test")
+ load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_test")
+ 
++exports_files([
++    "etc/mw_com_config.json",
++])
++
+ rust_binary(
+     name = "com-api-example",
+     srcs = ["basic-consumer-producer.rs"],

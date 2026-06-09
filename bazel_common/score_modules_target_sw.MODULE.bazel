@@ -25,6 +25,10 @@ bazel_dep(name = "score_baselibs_rust")
 git_override(
     module_name = "score_baselibs_rust",
     commit = "4050b62f298b639d27c092f63858642c3d08f9a0",
+    patch_strip = 1,
+    patches = [
+        "//patches/baselibs_rust:001-expose-log-examples.patch",
+    ],
     remote = "https://github.com/eclipse-score/baselibs_rust.git",
 )
 
@@ -37,6 +41,7 @@ git_override(
         "//patches/communication:001-expose-comm-examples.patch",
         "//patches/communication:002-tests-visibility.patch",
         "//patches/communication:003-module-deps-visibility.patch",
+        "//patches/communication:004-expose-comm-rust-example-config.patch",
     ],
     remote = "https://github.com/eclipse-score/communication.git",
 )

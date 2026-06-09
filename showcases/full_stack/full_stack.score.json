@@ -1,0 +1,11 @@
+{
+    "name": "Full-stack example: Orchestration + Persistency + Lifecycle",
+    "description": "Complex showcase combining three SCORE modules: Kyron async runtime executes a timer-triggered orchestration design that accumulates sensor readings, persists the final count to a KVS JSON snapshot on shutdown, and reports alive health checkpoints to the lifecycle health monitor throughout execution",
+    "apps": [
+        {
+            "path": "/showcases/bin/full_stack_example",
+            "args": [],
+            "env": {}
+        }
+    ]
+}

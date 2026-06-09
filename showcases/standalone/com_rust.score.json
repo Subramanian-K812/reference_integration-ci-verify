@@ -1,0 +1,14 @@
+{
+    "name": "Communication Rust Consumer Producer example",
+    "description": "Example demonstrating the Rust com-api with a composed VehicleMonitor that acts as both producer and consumer for tire and exhaust service events using the LOLA shared-memory binding",
+    "apps": [
+        {
+            "path": "/showcases/bin/com-api-example",
+            "args": [
+                "--service-instance-manifest",
+                "/showcases/data/standalone/etc/mw_com_config.json"
+            ],
+            "env": {}
+        }
+    ]
+}

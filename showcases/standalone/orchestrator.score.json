@@ -1,0 +1,79 @@
+[
+    {
+        "name": "Orchestrator basic example",
+        "description": "Foundational example demonstrating Design creation, sequential and concurrent action execution, timer events and worker binding",
+        "apps": [
+            {
+                "path": "/showcases/bin/basic",
+                "args": [],
+                "env": {}
+            }
+        ]
+    },
+    {
+        "name": "Orchestrator branching example",
+        "description": "Illustrates various branching patterns including parallel branch execution and synchronization points",
+        "apps": [
+            {
+                "path": "/showcases/bin/branching",
+                "args": [],
+                "env": {}
+            }
+        ]
+    },
+    {
+        "name": "Orchestrator catch_error example",
+        "description": "Demonstrates comprehensive error handling using CatchBuilder, recoverable and non-recoverable error handlers",
+        "apps": [
+            {
+                "path": "/showcases/bin/catch_error",
+                "args": [],
+                "env": {}
+            }
+        ]
+    },
+    {
+        "name": "Orchestrator DAG example",
+        "description": "Demonstrates Directed Acyclic Graph execution with 10 nodes, automatic topological sorting and parallel branch execution",
+        "apps": [
+            {
+                "path": "/showcases/bin/dag",
+                "args": [],
+                "env": {}
+            }
+        ]
+    },
+    {
+        "name": "Orchestrator events across local programs example",
+        "description": "Shows event handling and communication between multiple programs within the same process using TriggerBuilder and SyncBuilder",
+        "apps": [
+            {
+                "path": "/showcases/bin/events_across_local_programs",
+                "args": [],
+                "env": {}
+            }
+        ]
+    },
+    {
+        "name": "Orchestrator shutdown example",
+        "description": "Demonstrates proper program lifecycle management with start and stop actions and graceful shutdown events",
+        "apps": [
+            {
+                "path": "/showcases/bin/shutdown",
+                "args": [],
+                "env": {}
+            }
+        ]
+    },
+    {
+        "name": "Orchestrator shutdown using signals example",
+        "description": "Shows how to handle SIGINT and SIGTERM system signals for signal-driven graceful shutdown",
+        "apps": [
+            {
+                "path": "/showcases/bin/shutdown_using_signals",
+                "args": [],
+                "env": {}
+            }
+        ]
+    }
+]

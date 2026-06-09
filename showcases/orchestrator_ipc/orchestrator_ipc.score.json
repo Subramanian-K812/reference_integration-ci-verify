@@ -1,0 +1,17 @@
+{
+    "name": "Orchestrator inter-process event example",
+    "description": "Demonstrates inter-process communication using the orchestration framework: a receiver program waits for IPC events published by a separate sender program, coordinating two processes through iceoryx2-based event publishing",
+    "apps": [
+        {
+            "path": "/showcases/bin/inter_process_event_receiver",
+            "args": [],
+            "env": {}
+        },
+        {
+            "path": "/showcases/bin/inter_process_event_sender",
+            "args": [],
+            "env": {},
+            "delay": 1
+        }
+    ]
+}
