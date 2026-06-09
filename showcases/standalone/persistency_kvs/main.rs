@@ -30,7 +30,7 @@ const KVS_WORKING_DIR: &str = "/tmp/score_kvs_showcase";
 /// Writes a set of typed values into a KVS instance, flushes to disk, then
 /// creates a fresh KVS instance that reloads the persisted state and verifies
 /// each value matches what was written.
-fn run_kvs_showcase() -> Result<(), KvsErrors> {
+fn run_kvs_showcase() -> Result<(), ErrorCode> {
     let instance_id = InstanceId(1);
     let working_dir = PathBuf::from(KVS_WORKING_DIR);
 
@@ -65,9 +65,9 @@ fn run_kvs_showcase() -> Result<(), KvsErrors> {
         .kvs_load(KvsLoad::Optional)
         .build()?;
 
-    let speed: f64 = kvs_read.get_value("speed_kmh")?;
-    let running: bool = kvs_read.get_value("engine_running")?;
-    let vid: String = kvs_read.get_value("vehicle_id")?;
+    let speed: f64 = kvs_read.get_value_as::<f64>("speed_kmh")?;
+    let running: bool = kvs_read.get_value_as::<bool>("engine_running")?;
+    let vid: String = kvs_read.get_value_as::<String>("vehicle_id")?;
 
     println!("[KVS Showcase] Values reloaded from disk:");
     println!("  speed_kmh      = {}", speed);

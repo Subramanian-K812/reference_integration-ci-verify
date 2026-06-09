@@ -30,8 +30,6 @@ rust_binary(
         "@score_kyron//src/kyron:libkyron",
         "@score_kyron//src/kyron-foundation:libkyron_foundation",
         "@score_kyron//src/logging_tracing:liblogging_tracing",
-        "@score_lifecycle_health//src/health_monitoring_lib",
-        "@score_lifecycle_health//src/lifecycle_client_rs",
         "@score_orchestrator//src/orchestration:liborchestration",
         "@score_persistency//src/rust/rust_kvs",
     ],
