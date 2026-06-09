@@ -72,7 +72,8 @@
             {
                 "path": "/showcases/bin/shutdown_using_signals",
                 "args": [],
-                "env": {}
+                "env": {},
+                "timeout_secs": 3
             }
         ]
     }

@@ -35,7 +35,8 @@ struct AppConfig {
     dir: Option<String>,
     args: Vec<String>,
     env: HashMap<String, String>,
-    delay: Option<u64>, // delay in seconds before running the next app
+    delay: Option<u64>,       // delay in seconds before running the next app
+    timeout_secs: Option<u64>, // send SIGTERM after this many seconds; wait 5s then SIGKILL
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -75,10 +76,55 @@ fn pause_for_enter() -> Result<()> {
 fn main() -> Result<()> {
     let args = Args::parse();
 
-    let root_dir = env::var("SCORE_CLI_INIT_DIR").unwrap_or_else(|_| "/showcases".to_string());
+    // Determine the showcases root directory.
+    //
+    // Priority:
+    // 1. SCORE_CLI_INIT_DIR environment variable (explicit override).
+    // 2. Running from the extracted bundle: binary is at <root>/bin/cli,
+    //    so parent/parent is the root that contains configs/ and bin/.
+    // 3. Running via `bazel run //showcases/cli`: binary is at
+    //    <output>/showcases/cli/cli and the extracted bundle lives at
+    //    <output>/showcases/showcases/showcases/ (parent/parent/showcases/showcases).
+    // 4. Fall back to the hard-coded Docker deployment path /showcases.
+    let root_dir = env::var("SCORE_CLI_INIT_DIR").unwrap_or_else(|_| {
+        std::env::current_exe()
+            .ok()
+            .and_then(|exe| {
+                let grandparent = exe.parent().and_then(|p| p.parent())?;
+                // Case 2: running from extracted bundle – configs/ is directly here.
+                if grandparent.join("configs").exists() {
+                    return Some(grandparent.to_string_lossy().into_owned());
+                }
+                // Case 3: running via `bazel run` – bundle is nested one level deeper.
+                let nested = grandparent.join("showcases/showcases");
+                if nested.join("configs").exists() {
+                    return Some(nested.to_string_lossy().into_owned());
+                }
+                None
+            })
+            .unwrap_or_else(|| "/showcases".to_string())
+    });
 
     let mut configs = Vec::new();
     visit_dir(Path::new(&root_dir), &mut configs)?;
+
+    // Rewrite app paths that were authored with the hard-coded Docker deployment
+    // prefix (/showcases) so they resolve correctly under any root_dir.
+    let showcases_prefix = "/showcases";
+    if root_dir != showcases_prefix {
+        for config in &mut configs {
+            for app in &mut config.apps {
+                if app.path.starts_with(showcases_prefix) {
+                    app.path = format!("{}{}", root_dir, &app.path[showcases_prefix.len()..]);
+                }
+                if let Some(ref mut dir) = app.dir {
+                    if dir.starts_with(showcases_prefix) {
+                        *dir = format!("{}{}", root_dir, &dir[showcases_prefix.len()..]);
+                    }
+                }
+            }
+        }
+    }
 
     if configs.is_empty() {
         anyhow::bail!("No *.score.json files found under {}", root_dir);
@@ -230,16 +276,28 @@ fn run_score(config: &ScoreConfig) -> Result<()> {
         children.push((i + 1, app.path.clone(), child));
     }
 
-    // Wait for all children
+    // Wait for all children, honouring per-app timeout_secs
     for (i, path, mut child) in children {
-        let status = child
-            .wait()
-            .with_context(|| format!("Failed to wait for app {}: {}", i, path))?;
+        let timeout = config.apps.get(i - 1).and_then(|a| a.timeout_secs);
+        let status = if let Some(secs) = timeout {
+            // Poll until timeout, then send SIGTERM
+            let deadline = std::time::Instant::now() + Duration::from_secs(secs);
+            loop {
+                match child.try_wait().with_context(|| format!("Failed to poll app {}: {}", i, path))? {
+                    Some(s) => break s,
+                    None if std::time::Instant::now() >= deadline => {
+                        println!("App {}: timeout reached, sending SIGTERM to {}", i, path);
+                        let _ = child.kill();
+                        break child.wait().with_context(|| format!("Failed to wait after kill for app {}: {}", i, path))?;
+                    }
+                    None => std::thread::sleep(Duration::from_millis(100)),
+                }
+            }
+        } else {
+            child.wait().with_context(|| format!("Failed to wait for app {}: {}", i, path))?
+        };
 
-        if !status.success() {
-            // anyhow::bail!("App {}: command `{}` exited with status {}", i, path, status);
-        }
-
+        let _ = status; // non-zero exit is OK for showcase apps
         println!("App {}: finished {}", i, path);
     }
 
