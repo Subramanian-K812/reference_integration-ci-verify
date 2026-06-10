@@ -78,5 +78,9 @@ bazel_dep(name = "score_logging")
 git_override(
     module_name = "score_logging",
     commit = "0e9187f79a9935ca192779234b82f9d00dc4e335",
+    patch_strip = 1,
+    patches = [
+        "//patches/logging:001-add-arm64-linux-layout-support.patch",
+    ],
     remote = "https://github.com/eclipse-score/logging.git",
 )
