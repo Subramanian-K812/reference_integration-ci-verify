@@ -16,12 +16,11 @@ load("//bazel_common:bundlers.bzl", "score_pkg_bundle")
 
 # Full-stack showcase binary.
 #
-# Combines the SCORE Orchestration, Persistency and Lifecycle health-monitoring
-# modules into a single Rust binary demonstrating their integration:
+# Combines the SCORE Orchestration and Persistency modules into a single Rust
+# binary demonstrating their integration:
 #   - Kyron async runtime for safe multi-threaded execution
-#   - Orchestration design with sequential and timer-based actions
-#   - KVS-backed state persistence on shutdown
-#   - Lifecycle alive deadline supervision
+#   - Orchestration design with a timer-triggered run action
+#   - KVS-backed state persistence written from the program's stop action
 rust_binary(
     name = "full_stack_example",
     srcs = ["main.rs"],

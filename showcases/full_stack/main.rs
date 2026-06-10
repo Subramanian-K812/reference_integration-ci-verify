@@ -15,17 +15,22 @@
 //!
 //! This showcase demonstrates:
 //! - Kyron async runtime for safe multi-threaded task execution
-//! - Orchestration design with sequential and timer-based actions
-//! - KVS-backed state persistence written on shutdown
+//! - Orchestration design with a timer-triggered run action
+//! - KVS-backed state persistence written from the program's stop action
 //!
 //! Architecture
 //! ============
-//! The binary runs two concurrent programs inside a Kyron runtime:
+//! A single `SensorProcessingProgram` runs inside a Kyron runtime:
 //!
-//!   1. `SensorProcessingProgram` — timer-triggered, simulates reading sensor
-//!      data and accumulating a counter into a shared state.
-//!   2. `ShutdownProgram` — executes once, persists the accumulated counter
-//!      to a KVS JSON snapshot and reports final statistics.
+//!   - Its run action is timer-triggered and, on every tick, increments a
+//!     shared counter that simulates accumulated sensor readings.
+//!   - Its stop action runs once during shutdown (after the configured number
+//!     of cycles) and persists the accumulated counter to a KVS JSON snapshot.
+//!
+//! Persisting from the stop action (rather than a separate event-driven
+//! program) mirrors the robust shutdown pattern used by the
+//! `orchestration_persistency` showcase and guarantees the snapshot is written
+//! exactly once when the program terminates.
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -35,7 +40,7 @@ use kyron::runtime::*;
 use kyron_foundation::prelude::*;
 use logging_tracing::LogAndTraceBuilder;
 use orchestration::{
-    actions::{invoke::Invoke, sequence::SequenceBuilder},
+    actions::{invoke::Invoke, sequence::SequenceBuilder, sync::SyncBuilder},
     api::{design::Design, Orchestration},
     common::DesignConfig,
 };
@@ -54,15 +59,16 @@ type SharedCounter = Arc<Mutex<u32>>;
 
 /// Creates the sensor-processing orchestration design.
 ///
-/// Registers a timer-triggered event and a sequential run action that
-/// increments the shared counter on every tick.
+/// The program's run action is timer-triggered and increments the shared
+/// counter on every tick; its stop action persists the accumulated counter to
+/// a KVS JSON snapshot exactly once during shutdown.
 fn sensor_design(counter: SharedCounter) -> Result<Design, CommonErrors> {
-    let mut design = Design::new("SensorDesign".into(), DesignConfig::default());
+    let mut design = Design::new("FullStackDesign".into(), DesignConfig::default());
     design.register_event(SENSOR_TICK.into())?;
 
-    let counter_clone = counter.clone();
+    let counter_for_run = counter.clone();
     let process_tag = design.register_invoke_async("process_sensor".into(), move || {
-        let counter = counter_clone.clone();
+        let counter = counter_for_run.clone();
         async move {
             let mut guard = counter.lock().expect("lock poisoned");
             *guard += 1;
@@ -71,38 +77,16 @@ fn sensor_design(counter: SharedCounter) -> Result<Design, CommonErrors> {
         }
     })?;
 
-    design.add_program(
-        "SensorProcessingProgram",
-        move |design_instance, builder| {
-            builder.with_run_action(
-                SequenceBuilder::new()
-                    .with_step(orchestration::actions::sync::SyncBuilder::from_design(
-                        SENSOR_TICK,
-                        design_instance,
-                    ))
-                    .with_step(Invoke::from_tag(&process_tag, design_instance.config()))
-                    .build(),
-            );
-            Ok(())
-        },
-    );
-
-    Ok(design)
-}
-
-/// Creates the shutdown design that persists the counter to a KVS snapshot.
-///
-/// Triggers once on shutdown to flush the accumulated counter value and
-/// print the path of the persisted snapshot file.
-fn shutdown_design(counter: SharedCounter) -> Result<Design, CommonErrors> {
-    let mut design = Design::new("ShutdownDesign".into(), DesignConfig::default());
-    design.register_event("ShutdownEvent".into())?;
-
+    let counter_for_stop = counter;
     let persist_tag = design.register_invoke_async("persist_counter".into(), move || {
-        let counter = counter.clone();
+        let counter = counter_for_stop.clone();
         async move {
             let final_count = *counter.lock().expect("lock poisoned");
             info!("Persisting final counter value: {}", final_count);
+
+            // The JSON backend writes into the working directory but does not
+            // create it, so ensure it exists before building the KVS instance.
+            std::fs::create_dir_all(KVS_WORKING_DIR).expect("Failed to create KVS working dir");
 
             let backend = JsonBackendBuilder::new()
                 .working_dir(PathBuf::from(KVS_WORKING_DIR))
@@ -122,16 +106,18 @@ fn shutdown_design(counter: SharedCounter) -> Result<Design, CommonErrors> {
         }
     })?;
 
-    design.add_program("ShutdownProgram", move |design_instance, builder| {
-        builder.with_run_action(
-            SequenceBuilder::new()
-                .with_step(orchestration::actions::sync::SyncBuilder::from_design(
-                    "ShutdownEvent",
-                    design_instance,
-                ))
-                .with_step(Invoke::from_tag(&persist_tag, design_instance.config()))
-                .build(),
-        );
+    design.add_program("SensorProcessingProgram", move |design_instance, builder| {
+        builder
+            .with_run_action(
+                SequenceBuilder::new()
+                    .with_step(SyncBuilder::from_design(SENSOR_TICK, design_instance))
+                    .with_step(Invoke::from_tag(&process_tag, design_instance.config()))
+                    .build(),
+            )
+            .with_stop_action(
+                Invoke::from_tag(&persist_tag, design_instance.config()),
+                Duration::from_secs(2),
+            );
         Ok(())
     });
 
@@ -147,47 +133,34 @@ fn main() {
 
     info!("Full-stack showcase starting");
 
-    // Shared state between orchestration designs
+    // Shared state between the run and stop actions.
     let counter: SharedCounter = Arc::new(Mutex::new(0));
 
     // Build orchestration
     let mut orch = Orchestration::new()
-        .add_design(sensor_design(counter.clone()).expect("Failed to build SensorDesign"))
-        .add_design(shutdown_design(counter.clone()).expect("Failed to build ShutdownDesign"))
+        .add_design(sensor_design(counter).expect("Failed to build FullStackDesign"))
         .design_done();
 
     orch.get_deployment_mut()
         .bind_events_as_timer(&[SENSOR_TICK.into()], Duration::from_millis(200))
         .expect("Failed to bind timer event");
-    orch.get_deployment_mut()
-        .bind_events_as_local(&["ShutdownEvent".into()])
-        .expect("Failed to bind local event");
 
     let mut program_manager = orch.into_program_manager().unwrap();
     let mut programs = program_manager.get_programs();
 
     // Kyron runtime
-    let (builder, _) = kyron::runtime::RuntimeBuilder::new().with_engine(
-        ExecutionEngineBuilder::new()
-            .task_queue_size(256)
-            .workers(2),
-    );
+    let (builder, _) = kyron::runtime::RuntimeBuilder::new()
+        .with_engine(ExecutionEngineBuilder::new().task_queue_size(256).workers(2));
     let mut runtime = builder.build().unwrap();
 
     runtime.block_on(async move {
         let mut sensor_program = programs.pop().unwrap();
-        let mut shutdown_program = programs.pop().unwrap();
 
         let h_sensor = kyron::spawn(async move {
             let _ = sensor_program.run_n(CYCLE_COUNT).await;
         });
 
-        let h_shutdown = kyron::spawn(async move {
-            let _ = shutdown_program.run_n(1).await;
-        });
-
         let _ = h_sensor.await;
-        let _ = h_shutdown.await;
 
         info!("Full-stack showcase finished");
     });

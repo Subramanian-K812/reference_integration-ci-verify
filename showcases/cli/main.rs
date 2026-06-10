@@ -35,7 +35,7 @@ struct AppConfig {
     dir: Option<String>,
     args: Vec<String>,
     env: HashMap<String, String>,
-    delay: Option<u64>,       // delay in seconds before running the next app
+    delay: Option<u64>,        // delay in seconds before running the next app
     timeout_secs: Option<u64>, // send SIGTERM after this many seconds; wait 5s then SIGKILL
 }
 
@@ -112,14 +112,26 @@ fn main() -> Result<()> {
     // prefix (/showcases) so they resolve correctly under any root_dir.
     let showcases_prefix = "/showcases";
     if root_dir != showcases_prefix {
+        let rewrite = |value: &str| -> Option<String> {
+            value
+                .starts_with(showcases_prefix)
+                .then(|| format!("{}{}", root_dir, &value[showcases_prefix.len()..]))
+        };
         for config in &mut configs {
             for app in &mut config.apps {
-                if app.path.starts_with(showcases_prefix) {
-                    app.path = format!("{}{}", root_dir, &app.path[showcases_prefix.len()..]);
+                if let Some(rewritten) = rewrite(&app.path) {
+                    app.path = rewritten;
                 }
                 if let Some(ref mut dir) = app.dir {
-                    if dir.starts_with(showcases_prefix) {
-                        *dir = format!("{}{}", root_dir, &dir[showcases_prefix.len()..]);
+                    if let Some(rewritten) = rewrite(dir) {
+                        *dir = rewritten;
+                    }
+                }
+                // Arguments may also embed the hard-coded Docker deployment prefix
+                // (e.g. a --service-instance-manifest path), so rewrite them too.
+                for arg in &mut app.args {
+                    if let Some(rewritten) = rewrite(arg) {
+                        *arg = rewritten;
                     }
                 }
             }
@@ -188,8 +200,20 @@ fn main() -> Result<()> {
         selected
     };
 
+    let mut failed_examples: Vec<String> = Vec::new();
     for index in selected {
-        run_score(&configs[index])?;
+        if let Err(e) = run_score(&configs[index]) {
+            eprintln!("✗ {:#}", e);
+            failed_examples.push(configs[index].name.clone());
+        }
+    }
+
+    if !failed_examples.is_empty() {
+        anyhow::bail!(
+            "{} example(s) failed: {}",
+            failed_examples.len(),
+            failed_examples.join(", ")
+        );
     }
 
     outro("All done!")?;
@@ -240,6 +264,7 @@ fn run_score(config: &ScoreConfig) -> Result<()> {
     println!("▶ Running example: {}", config.name);
 
     let mut children: Vec<(usize, String, Child)> = Vec::new();
+    let mut failures: Vec<String> = Vec::new();
 
     let now = std::time::Instant::now();
     println!("{:?} Starting example '{}'", now.elapsed(), config.name);
@@ -279,28 +304,50 @@ fn run_score(config: &ScoreConfig) -> Result<()> {
     // Wait for all children, honouring per-app timeout_secs
     for (i, path, mut child) in children {
         let timeout = config.apps.get(i - 1).and_then(|a| a.timeout_secs);
+        // Apps configured with a timeout are long-running services that we stop
+        // on purpose; their non-zero exit status after SIGTERM is expected and
+        // must not be reported as a failure.
+        let mut terminated_by_timeout = false;
         let status = if let Some(secs) = timeout {
             // Poll until timeout, then send SIGTERM
             let deadline = std::time::Instant::now() + Duration::from_secs(secs);
             loop {
-                match child.try_wait().with_context(|| format!("Failed to poll app {}: {}", i, path))? {
+                match child
+                    .try_wait()
+                    .with_context(|| format!("Failed to poll app {}: {}", i, path))?
+                {
                     Some(s) => break s,
                     None if std::time::Instant::now() >= deadline => {
                         println!("App {}: timeout reached, sending SIGTERM to {}", i, path);
+                        terminated_by_timeout = true;
                         let _ = child.kill();
-                        break child.wait().with_context(|| format!("Failed to wait after kill for app {}: {}", i, path))?;
-                    }
+                        break child
+                            .wait()
+                            .with_context(|| format!("Failed to wait after kill for app {}: {}", i, path))?;
+                    },
                     None => std::thread::sleep(Duration::from_millis(100)),
                 }
             }
         } else {
-            child.wait().with_context(|| format!("Failed to wait for app {}: {}", i, path))?
+            child
+                .wait()
+                .with_context(|| format!("Failed to wait for app {}: {}", i, path))?
         };
 
-        let _ = status; // non-zero exit is OK for showcase apps
-        println!("App {}: finished {}", i, path);
+        if terminated_by_timeout {
+            println!("App {}: stopped after timeout {}", i, path);
+        } else if status.success() {
+            println!("App {}: finished {}", i, path);
+        } else {
+            println!("App {}: FAILED ({}) {}", i, status, path);
+            failures.push(format!("app {} ({}) exited with {}", i, path, status));
+        }
     }
 
-    println!("✅ Example '{}' finished successfully.", config.name);
-    Ok(())
+    if failures.is_empty() {
+        println!("✅ Example '{}' finished successfully.", config.name);
+        Ok(())
+    } else {
+        anyhow::bail!("Example '{}' failed: {}", config.name, failures.join("; "))
+    }
 }

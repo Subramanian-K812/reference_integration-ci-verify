@@ -6,7 +6,7 @@
             "path": "/showcases/bin/com-api-example",
             "args": [
                 "--service-instance-manifest",
-                "/showcases/data/standalone/etc/mw_com_config.json"
+                "/showcases/data/comm_rust/etc/mw_com_config.json"
             ],
             "env": {}
         }

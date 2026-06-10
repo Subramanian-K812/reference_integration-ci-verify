@@ -35,9 +35,7 @@ fn run_kvs_showcase() -> Result<(), ErrorCode> {
     let working_dir = PathBuf::from(KVS_WORKING_DIR);
 
     // --- Write phase ---
-    let backend_write = JsonBackendBuilder::new()
-        .working_dir(working_dir.clone())
-        .build();
+    let backend_write = JsonBackendBuilder::new().working_dir(working_dir.clone()).build();
     let kvs_write = KvsBuilder::new(instance_id)
         .backend(Box::new(backend_write))
         .kvs_load(KvsLoad::Optional)
@@ -53,10 +51,7 @@ fn run_kvs_showcase() -> Result<(), ErrorCode> {
     println!("  vehicle_id   = \"SCORE-DEMO-001\"");
 
     kvs_write.flush()?;
-    println!(
-        "[KVS Showcase] State flushed to disk at: {}",
-        KVS_WORKING_DIR
-    );
+    println!("[KVS Showcase] State flushed to disk at: {}", KVS_WORKING_DIR);
 
     // --- Reload phase ---
     let backend_read = JsonBackendBuilder::new().working_dir(working_dir).build();
@@ -74,10 +69,7 @@ fn run_kvs_showcase() -> Result<(), ErrorCode> {
     println!("  engine_running = {}", running);
     println!("  vehicle_id     = \"{}\"", vid);
 
-    assert!(
-        (speed - 120.5_f64).abs() < f64::EPSILON,
-        "speed_kmh mismatch"
-    );
+    assert!((speed - 120.5_f64).abs() < f64::EPSILON, "speed_kmh mismatch");
     assert!(running, "engine_running mismatch");
     assert_eq!(vid, "SCORE-DEMO-001", "vehicle_id mismatch");
 
@@ -89,11 +81,21 @@ fn run_kvs_showcase() -> Result<(), ErrorCode> {
 fn main() {
     println!("[KVS Showcase] Starting SCORE Persistency KVS standalone showcase");
 
+    // The JSON backend writes snapshot files into the working directory but does
+    // not create it, so ensure it exists before building any KVS instance.
+    if let Err(e) = std::fs::create_dir_all(KVS_WORKING_DIR) {
+        eprintln!(
+            "[KVS Showcase] ERROR: failed to create working dir {}: {}",
+            KVS_WORKING_DIR, e
+        );
+        std::process::exit(1);
+    }
+
     match run_kvs_showcase() {
         Ok(()) => println!("[KVS Showcase] Showcase completed successfully."),
         Err(e) => {
             eprintln!("[KVS Showcase] ERROR: {:?}", e);
             std::process::exit(1);
-        }
+        },
     }
 }
