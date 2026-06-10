@@ -4,7 +4,9 @@
 //showcases/standalone:kyron
 //showcases/standalone:orchestrator
 //showcases/standalone:persistency
+//showcases/standalone:persistency_cpp
 //showcases/standalone:logging_rust
+//showcases/standalone:logging_cpp
 //showcases/orchestration_persistency:orch_per
 //showcases/orchestrator_ipc:orchestrator_ipc
 //showcases/simple_lifecycle:simple_lifecycle

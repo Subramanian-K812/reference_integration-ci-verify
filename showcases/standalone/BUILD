@@ -77,10 +77,35 @@ score_pkg_bundle(
 )
 
 score_pkg_bundle(
+    name = "persistency_cpp",
+    bins = ["//showcases/standalone/persistency_kvs_cpp:persistency_kvs_cpp_example"],
+    config_data = [
+        "//showcases/standalone:persistency_cpp.score.json",
+    ],
+    package_dir = "standalone",
+)
+
+score_pkg_bundle(
     name = "logging_rust",
     bins = ["@score_baselibs_rust//examples/log_builtin:log_builtin"],
     config_data = [
         "//showcases/standalone:logging_rust.score.json",
+    ],
+    package_dir = "standalone",
+)
+
+# Gives the generic upstream binary name "example" a descriptive name in
+# the bundle's bin/ directory (the bundler names files after the target).
+alias(
+    name = "logging_cpp_example",
+    actual = "@score_logging//score/mw/log/rust/score_log_bridge_cpp_init:example",
+)
+
+score_pkg_bundle(
+    name = "logging_cpp",
+    bins = [":logging_cpp_example"],
+    config_data = [
+        "//showcases/standalone:logging_cpp.score.json",
     ],
     package_dir = "standalone",
 )

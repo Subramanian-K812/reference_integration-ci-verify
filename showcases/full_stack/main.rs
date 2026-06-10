@@ -11,12 +11,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // *******************************************************************************
 
-//! Full-stack showcase combining SCORE Orchestration and Persistency modules.
+//! Full-stack showcase combining SCORE Orchestration, Persistency and
+//! Lifecycle health-monitoring modules.
 //!
 //! This showcase demonstrates:
 //! - Kyron async runtime for safe multi-threaded task execution
 //! - Orchestration design with a timer-triggered run action
 //! - KVS-backed state persistence written from the program's stop action
+//! - Lifecycle alive deadline supervision reporting health checkpoints on a
+//!   dedicated OS thread
 //!
 //! Architecture
 //! ============
@@ -27,15 +30,30 @@
 //!   - Its stop action runs once during shutdown (after the configured number
 //!     of cycles) and persists the accumulated counter to a KVS JSON snapshot.
 //!
+//! In parallel, a supervision thread owns a lifecycle `HealthMonitor` with an
+//! alive deadline monitor and brackets each 100 ms supervision cycle with a
+//! deadline start/stop checkpoint.
+//!
+//! When the process is launched by the lifecycle launch manager (detected via
+//! the `IDENTIFIER` environment variable the launch manager injects), the
+//! health monitor connects to the supervisor and the process reports its
+//! RUNNING execution state. When run standalone (e.g. via the showcase CLI),
+//! deadline checkpoints are still recorded locally but no supervisor
+//! connection is attempted, so the showcase works on every configuration.
+//!
 //! Persisting from the stop action (rather than a separate event-driven
 //! program) mirrors the robust shutdown pattern used by the
 //! `orchestration_persistency` showcase and guarantees the snapshot is written
 //! exactly once when the program terminates.
 
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use health_monitoring_lib::{
+    deadline::DeadlineMonitorBuilder, DeadlineTag, HealthMonitorBuilder, MonitorTag, TimeRange,
+};
 use kyron::runtime::*;
 use kyron_foundation::prelude::*;
 use logging_tracing::LogAndTraceBuilder;
@@ -53,6 +71,12 @@ const CYCLE_COUNT: usize = 5;
 const KVS_WORKING_DIR: &str = "/tmp/score_full_stack_showcase";
 /// Event name triggering the sensor processing action.
 const SENSOR_TICK: &str = "SensorTickEvent";
+/// Health monitor tag owning the alive deadline supervision.
+const MONITOR_TAG: &str = "full_stack_monitor";
+/// Deadline monitor tag used for alive supervision reporting.
+const DEADLINE_TAG: &str = "full_stack_deadline";
+/// Supervision cycle period; each cycle is bracketed by a deadline checkpoint.
+const SUPERVISION_CYCLE: Duration = Duration::from_millis(100);
 
 /// Shared mutable counter simulating accumulated sensor readings.
 type SharedCounter = Arc<Mutex<u32>>;
@@ -124,6 +148,69 @@ fn sensor_design(counter: SharedCounter) -> Result<Design, CommonErrors> {
     Ok(design)
 }
 
+/// Runs lifecycle alive deadline supervision until `stop` becomes true.
+///
+/// Owns the `HealthMonitor` for its whole lifetime (the monitor types stay on
+/// this thread). Every supervision cycle acquires the alive deadline, holds it
+/// for the cycle period and stops it again, recording an alive checkpoint that
+/// must complete within the configured time range.
+///
+/// `supervised` selects whether the monitor connects to the lifecycle
+/// supervisor: this requires the launch-manager environment and would panic
+/// without it, so it is only enabled when running under the launch manager.
+fn run_alive_supervision(stop: Arc<AtomicBool>, supervised: bool) {
+    let mut hm = HealthMonitorBuilder::new()
+        .add_deadline_monitor(
+            MonitorTag::from(MONITOR_TAG),
+            DeadlineMonitorBuilder::new().add_deadline(
+                DeadlineTag::from(DEADLINE_TAG),
+                TimeRange::new(Duration::from_millis(50), Duration::from_millis(500)),
+            ),
+        )
+        .with_supervisor_api_cycle(Duration::from_millis(50))
+        .with_internal_processing_cycle(Duration::from_millis(50))
+        .build()
+        .expect("Failed to build HealthMonitor");
+
+    let monitor = hm
+        .get_deadline_monitor(MonitorTag::from(MONITOR_TAG))
+        .expect("Failed to get deadline monitor");
+
+    if supervised {
+        // Connects to the lifecycle supervisor and reports the RUNNING
+        // execution state; both need the launch-manager environment.
+        hm.start();
+        if lifecycle_client_rs::report_execution_state_running() {
+            info!("Reported RUNNING execution state to the launch manager");
+        } else {
+            info!("Failed to report RUNNING execution state to the launch manager");
+        }
+    } else {
+        info!("Running standalone: deadline checkpoints are recorded locally only");
+    }
+
+    let mut checkpoints: u32 = 0;
+    while !stop.load(Ordering::Relaxed) {
+        let mut deadline = monitor
+            .get_deadline(DeadlineTag::from(DEADLINE_TAG))
+            .expect("Failed to get deadline");
+
+        match deadline.start() {
+            Ok(handle) => {
+                std::thread::sleep(SUPERVISION_CYCLE);
+                handle.stop();
+                checkpoints += 1;
+            },
+            Err(e) => {
+                info!("Alive deadline could not be started: {:?}", e);
+                break;
+            },
+        };
+    }
+
+    info!("Alive supervision finished after {} checkpoints", checkpoints);
+}
+
 /// Entry point for the full-stack showcase.
 fn main() {
     let _logger = LogAndTraceBuilder::new()
@@ -132,6 +219,17 @@ fn main() {
         .build();
 
     info!("Full-stack showcase starting");
+
+    // The launch manager injects IDENTIFIER into processes it supervises; its
+    // presence selects full supervisor-connected health monitoring.
+    let supervised = std::env::var("IDENTIFIER").is_ok();
+
+    // Lifecycle alive supervision on a dedicated OS thread.
+    let supervision_stop = Arc::new(AtomicBool::new(false));
+    let supervision_handle = {
+        let stop = supervision_stop.clone();
+        std::thread::spawn(move || run_alive_supervision(stop, supervised))
+    };
 
     // Shared state between the run and stop actions.
     let counter: SharedCounter = Arc::new(Mutex::new(0));
@@ -164,4 +262,8 @@ fn main() {
 
         info!("Full-stack showcase finished");
     });
+
+    // Stop the supervision thread after the orchestration work completed.
+    supervision_stop.store(true, Ordering::Relaxed);
+    supervision_handle.join().expect("Supervision thread panicked");
 }

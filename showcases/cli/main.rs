@@ -311,7 +311,7 @@ fn run_score(config: &ScoreConfig) -> Result<()> {
         let status = if let Some(secs) = timeout {
             // Poll until timeout, then send SIGTERM
             let deadline = std::time::Instant::now() + Duration::from_secs(secs);
-            loop {
+            'wait: loop {
                 match child
                     .try_wait()
                     .with_context(|| format!("Failed to poll app {}: {}", i, path))?
@@ -330,11 +330,11 @@ fn run_score(config: &ScoreConfig) -> Result<()> {
                                 .try_wait()
                                 .with_context(|| format!("Failed to poll app {} during grace period: {}", i, path))?
                             {
-                                Some(s) => break s,
+                                Some(s) => break 'wait s,
                                 None if std::time::Instant::now() >= grace_deadline => {
                                     println!("App {}: grace period expired, sending SIGKILL to {}", i, path);
                                     let _ = child.kill();
-                                    break child.wait().with_context(|| {
+                                    break 'wait child.wait().with_context(|| {
                                         format!("Failed to wait after SIGKILL for app {}: {}", i, path)
                                     })?;
                                 },
