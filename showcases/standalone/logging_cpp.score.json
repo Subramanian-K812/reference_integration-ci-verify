@@ -1,0 +1,11 @@
+{
+    "name": "Logging C++ initialized bridge example",
+    "description": "Demonstrates SCORE logging with a C++ entrypoint: the C++ application initializes the mw::log runtime via score_log_bridge_cpp_init and a Rust library emits structured log messages through the shared C++ logging backend",
+    "apps": [
+        {
+            "path": "/showcases/bin/logging_cpp_example",
+            "args": [],
+            "env": {}
+        }
+    ]
+}
