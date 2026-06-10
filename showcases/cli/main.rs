@@ -332,20 +332,12 @@ fn run_score(config: &ScoreConfig) -> Result<()> {
                             {
                                 Some(s) => break s,
                                 None if std::time::Instant::now() >= grace_deadline => {
-                                    println!(
-                                        "App {}: grace period expired, sending SIGKILL to {}",
-                                        i, path
-                                    );
+                                    println!("App {}: grace period expired, sending SIGKILL to {}", i, path);
                                     let _ = child.kill();
-                                    break child
-                                        .wait()
-                                        .with_context(|| {
-                                            format!(
-                                                "Failed to wait after SIGKILL for app {}: {}",
-                                                i, path
-                                            )
-                                        })?;
-                                }
+                                    break child.wait().with_context(|| {
+                                        format!("Failed to wait after SIGKILL for app {}: {}", i, path)
+                                    })?;
+                                },
                                 None => std::thread::sleep(Duration::from_millis(100)),
                             }
                         }

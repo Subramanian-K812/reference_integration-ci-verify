@@ -20,7 +20,10 @@ score_pkg_bundle(
         "//showcases/standalone:kyron_pkg_files",
         "//showcases/standalone:orchestrator_pkg_files",
         "//showcases/standalone:persistency_pkg_files",
-        "//showcases/standalone:logging_rust_pkg_files",
+        # logging_rust_pkg_files is excluded from the image bundle because log_builtin
+        # (in score_baselibs_rust) transitively uses score_log_fmt which requires Rust >= 1.80,
+        # while the CI toolchain (Ferrocene for aarch64 and rules_rust default for x86_64) is older.
+        # The standalone target //showcases/standalone:logging_rust still exists for direct use.
         "//showcases/orchestration_persistency:orch_per_pkg_files",
         "//showcases/orchestrator_ipc:orchestrator_ipc_pkg_files",
         "//showcases/simple_lifecycle:simple_lifecycle_pkg_files",
