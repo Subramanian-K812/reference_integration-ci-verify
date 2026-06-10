@@ -320,10 +320,35 @@ fn run_score(config: &ScoreConfig) -> Result<()> {
                     None if std::time::Instant::now() >= deadline => {
                         println!("App {}: timeout reached, sending SIGTERM to {}", i, path);
                         terminated_by_timeout = true;
-                        let _ = child.kill();
-                        break child
-                            .wait()
-                            .with_context(|| format!("Failed to wait after kill for app {}: {}", i, path))?;
+                        send_sigterm(&child)
+                            .with_context(|| format!("Failed to send SIGTERM to app {}: {}", i, path))?;
+
+                        // Give the process a chance to perform graceful shutdown.
+                        let grace_deadline = std::time::Instant::now() + Duration::from_secs(5);
+                        loop {
+                            match child
+                                .try_wait()
+                                .with_context(|| format!("Failed to poll app {} during grace period: {}", i, path))?
+                            {
+                                Some(s) => break s,
+                                None if std::time::Instant::now() >= grace_deadline => {
+                                    println!(
+                                        "App {}: grace period expired, sending SIGKILL to {}",
+                                        i, path
+                                    );
+                                    let _ = child.kill();
+                                    break child
+                                        .wait()
+                                        .with_context(|| {
+                                            format!(
+                                                "Failed to wait after SIGKILL for app {}: {}",
+                                                i, path
+                                            )
+                                        })?;
+                                }
+                                None => std::thread::sleep(Duration::from_millis(100)),
+                            }
+                        }
                     },
                     None => std::thread::sleep(Duration::from_millis(100)),
                 }
@@ -349,5 +374,19 @@ fn run_score(config: &ScoreConfig) -> Result<()> {
         Ok(())
     } else {
         anyhow::bail!("Example '{}' failed: {}", config.name, failures.join("; "))
+    }
+}
+
+fn send_sigterm(child: &Child) -> Result<()> {
+    let pid = child.id().to_string();
+    let status = Command::new("kill")
+        .args(["-TERM", &pid])
+        .status()
+        .with_context(|| format!("Failed to execute kill -TERM for pid {}", pid))?;
+
+    if status.success() {
+        Ok(())
+    } else {
+        anyhow::bail!("kill -TERM {} exited with status {}", pid, status)
     }
 }

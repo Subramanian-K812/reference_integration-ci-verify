@@ -23,6 +23,9 @@
             "score_baselibs_rust": {
                 "repo": "https://github.com/eclipse-score/baselibs_rust.git",
                 "hash": "4050b62f298b639d27c092f63858642c3d08f9a0",
+                "bazel_patches": [
+                    "//patches/baselibs_rust:001-expose-log-examples.patch"
+                ],
                 "metadata": {
                     "code_root_path": "//src/...",
                     "exclude_test_targets": [
@@ -39,7 +42,8 @@
                 "bazel_patches": [
                     "//patches/communication:001-expose-comm-examples.patch",
                     "//patches/communication:002-tests-visibility.patch",
-                    "//patches/communication:003-module-deps-visibility.patch"
+                    "//patches/communication:003-module-deps-visibility.patch",
+                    "//patches/communication:004-expose-comm-rust-example-config.patch"
                 ],
                 "metadata": {
                     "code_root_path": "//score/mw/com/impl/...",

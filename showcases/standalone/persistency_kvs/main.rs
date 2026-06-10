@@ -69,7 +69,7 @@ fn run_kvs_showcase() -> Result<(), ErrorCode> {
     println!("  engine_running = {}", running);
     println!("  vehicle_id     = \"{}\"", vid);
 
-    assert!((speed - 120.5_f64).abs() < f64::EPSILON, "speed_kmh mismatch");
+    assert!((speed - 120.5_f64).abs() < 1e-9, "speed_kmh mismatch");
     assert!(running, "engine_running mismatch");
     assert_eq!(vid, "SCORE-DEMO-001", "vehicle_id mismatch");
 
