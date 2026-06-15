@@ -20,6 +20,14 @@ use std::process::Child;
 use std::process::Command;
 use std::time::Duration;
 
+/// Absolute path the showcase bundle is mounted at in the deployed (Docker/OCI)
+/// image. The `.score.json` descriptors hard-code this prefix (e.g.
+/// `/showcases/bin/...`). It is distinct from `SCORE_CLI_INIT_DIR`: that env var
+/// (or auto-detection) determines the *actual* root the CLI runs from, while
+/// this constant is the *baked-in* prefix we rewrite away when that root differs
+/// (extracted bundle, `bazel run`, or an explicit `SCORE_CLI_INIT_DIR`).
+const DEPLOY_PREFIX: &str = "/showcases";
+
 #[derive(Parser)]
 #[command(name = "SCORE CLI")]
 #[command(about = "SCORE CLI showcase entrypoint", long_about = None)]
@@ -102,7 +110,7 @@ fn main() -> Result<()> {
                 }
                 None
             })
-            .unwrap_or_else(|| "/showcases".to_string())
+            .unwrap_or_else(|| DEPLOY_PREFIX.to_string())
     });
 
     let mut configs = Vec::new();
@@ -110,7 +118,7 @@ fn main() -> Result<()> {
 
     // Rewrite app paths that were authored with the hard-coded Docker deployment
     // prefix (/showcases) so they resolve correctly under any root_dir.
-    let showcases_prefix = "/showcases";
+    let showcases_prefix = DEPLOY_PREFIX;
     if root_dir != showcases_prefix {
         let rewrite = |value: &str| -> Option<String> {
             value
