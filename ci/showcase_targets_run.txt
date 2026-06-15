@@ -1,2 +1,13 @@
-//feature_showcase/rust:kyron_example
-//feature_showcase/rust:orch_per_example
+//showcases:showcases
+//showcases/standalone:comm
+//showcases/standalone:comm_rust
+//showcases/standalone:kyron
+//showcases/standalone:orchestrator
+//showcases/standalone:persistency
+//showcases/standalone:persistency_cpp
+//showcases/standalone:logging_rust
+//showcases/standalone:logging_cpp
+//showcases/orchestration_persistency:orch_per
+//showcases/orchestrator_ipc:orchestrator_ipc
+//showcases/simple_lifecycle:simple_lifecycle
+//showcases/full_stack:full_stack

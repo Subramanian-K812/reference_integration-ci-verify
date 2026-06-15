@@ -1,0 +1,11 @@
+{
+    "name": "Persistency KVS standalone example",
+    "description": "Demonstrates the SCORE Key-Value Store API: creating a KVS instance with a JSON backend, writing typed values (f64, bool, String), flushing state to disk and reloading it into a fresh instance to verify round-trip correctness",
+    "apps": [
+        {
+            "path": "/showcases/bin/persistency_kvs_example",
+            "args": [],
+            "env": {}
+        }
+    ]
+}

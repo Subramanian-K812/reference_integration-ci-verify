@@ -1,0 +1,14 @@
+diff --git a/examples/log_builtin/BUILD b/examples/log_builtin/BUILD
+index 0557d5a9..a3c0f4b2 100644
+--- a/examples/log_builtin/BUILD
++++ b/examples/log_builtin/BUILD
+@@ -16,7 +16,8 @@ load("@rules_rust//rust:defs.bzl", "rust_binary")
+ rust_binary(
+     name = "log_builtin",
+     srcs = glob(["src/**/*.rs"]),
++    visibility = ["//visibility:public"],
+     deps = [
+         "//src/log/score_log",
+         "//src/log/stdout_logger",
+     ],
+ )

@@ -31,5 +31,16 @@
                 "env": {}
             }
         ]
+    },
+    {
+        "name": "Kyron MPMC example",
+        "description": "Demonstrates work-stealing scheduler behavior with a Multi-Producer Multi-Consumer queue pattern showing task distribution between local and global queues",
+        "apps": [
+            {
+                "path": "/showcases/bin/mpmc",
+                "args": [],
+                "env": {}
+            }
+        ]
     }
 ]

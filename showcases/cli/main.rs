@@ -20,6 +20,14 @@ use std::process::Child;
 use std::process::Command;
 use std::time::Duration;
 
+/// Absolute path the showcase bundle is mounted at in the deployed (Docker/OCI)
+/// image. The `.score.json` descriptors hard-code this prefix (e.g.
+/// `/showcases/bin/...`). It is distinct from `SCORE_CLI_INIT_DIR`: that env var
+/// (or auto-detection) determines the *actual* root the CLI runs from, while
+/// this constant is the *baked-in* prefix we rewrite away when that root differs
+/// (extracted bundle, `bazel run`, or an explicit `SCORE_CLI_INIT_DIR`).
+const DEPLOY_PREFIX: &str = "/showcases";
+
 #[derive(Parser)]
 #[command(name = "SCORE CLI")]
 #[command(about = "SCORE CLI showcase entrypoint", long_about = None)]
@@ -35,7 +43,8 @@ struct AppConfig {
     dir: Option<String>,
     args: Vec<String>,
     env: HashMap<String, String>,
-    delay: Option<u64>, // delay in seconds before running the next app
+    delay: Option<u64>,        // delay in seconds before running the next app
+    timeout_secs: Option<u64>, // send SIGTERM after this many seconds; wait 5s then SIGKILL
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -75,10 +84,67 @@ fn pause_for_enter() -> Result<()> {
 fn main() -> Result<()> {
     let args = Args::parse();
 
-    let root_dir = env::var("SCORE_CLI_INIT_DIR").unwrap_or_else(|_| "/showcases".to_string());
+    // Determine the showcases root directory.
+    //
+    // Priority:
+    // 1. SCORE_CLI_INIT_DIR environment variable (explicit override).
+    // 2. Running from the extracted bundle: binary is at <root>/bin/cli,
+    //    so parent/parent is the root that contains configs/ and bin/.
+    // 3. Running via `bazel run //showcases/cli`: binary is at
+    //    <output>/showcases/cli/cli and the extracted bundle lives at
+    //    <output>/showcases/showcases/showcases/ (parent/parent/showcases/showcases).
+    // 4. Fall back to the hard-coded Docker deployment path /showcases.
+    let root_dir = env::var("SCORE_CLI_INIT_DIR").unwrap_or_else(|_| {
+        std::env::current_exe()
+            .ok()
+            .and_then(|exe| {
+                let grandparent = exe.parent().and_then(|p| p.parent())?;
+                // Case 2: running from extracted bundle – configs/ is directly here.
+                if grandparent.join("configs").exists() {
+                    return Some(grandparent.to_string_lossy().into_owned());
+                }
+                // Case 3: running via `bazel run` – bundle is nested one level deeper.
+                let nested = grandparent.join("showcases/showcases");
+                if nested.join("configs").exists() {
+                    return Some(nested.to_string_lossy().into_owned());
+                }
+                None
+            })
+            .unwrap_or_else(|| DEPLOY_PREFIX.to_string())
+    });
 
     let mut configs = Vec::new();
     visit_dir(Path::new(&root_dir), &mut configs)?;
+
+    // Rewrite app paths that were authored with the hard-coded Docker deployment
+    // prefix (/showcases) so they resolve correctly under any root_dir.
+    let showcases_prefix = DEPLOY_PREFIX;
+    if root_dir != showcases_prefix {
+        let rewrite = |value: &str| -> Option<String> {
+            value
+                .starts_with(showcases_prefix)
+                .then(|| format!("{}{}", root_dir, &value[showcases_prefix.len()..]))
+        };
+        for config in &mut configs {
+            for app in &mut config.apps {
+                if let Some(rewritten) = rewrite(&app.path) {
+                    app.path = rewritten;
+                }
+                if let Some(ref mut dir) = app.dir {
+                    if let Some(rewritten) = rewrite(dir) {
+                        *dir = rewritten;
+                    }
+                }
+                // Arguments may also embed the hard-coded Docker deployment prefix
+                // (e.g. a --service-instance-manifest path), so rewrite them too.
+                for arg in &mut app.args {
+                    if let Some(rewritten) = rewrite(arg) {
+                        *arg = rewritten;
+                    }
+                }
+            }
+        }
+    }
 
     if configs.is_empty() {
         anyhow::bail!("No *.score.json files found under {}", root_dir);
@@ -142,8 +208,20 @@ fn main() -> Result<()> {
         selected
     };
 
+    let mut failed_examples: Vec<String> = Vec::new();
     for index in selected {
-        run_score(&configs[index])?;
+        if let Err(e) = run_score(&configs[index]) {
+            eprintln!("✗ {:#}", e);
+            failed_examples.push(configs[index].name.clone());
+        }
+    }
+
+    if !failed_examples.is_empty() {
+        anyhow::bail!(
+            "{} example(s) failed: {}",
+            failed_examples.len(),
+            failed_examples.join(", ")
+        );
     }
 
     outro("All done!")?;
@@ -194,6 +272,7 @@ fn run_score(config: &ScoreConfig) -> Result<()> {
     println!("▶ Running example: {}", config.name);
 
     let mut children: Vec<(usize, String, Child)> = Vec::new();
+    let mut failures: Vec<String> = Vec::new();
 
     let now = std::time::Instant::now();
     println!("{:?} Starting example '{}'", now.elapsed(), config.name);
@@ -230,19 +309,84 @@ fn run_score(config: &ScoreConfig) -> Result<()> {
         children.push((i + 1, app.path.clone(), child));
     }
 
-    // Wait for all children
+    // Wait for all children, honouring per-app timeout_secs
     for (i, path, mut child) in children {
-        let status = child
-            .wait()
-            .with_context(|| format!("Failed to wait for app {}: {}", i, path))?;
+        let timeout = config.apps.get(i - 1).and_then(|a| a.timeout_secs);
+        // Apps configured with a timeout are long-running services that we stop
+        // on purpose; their non-zero exit status after SIGTERM is expected and
+        // must not be reported as a failure.
+        let mut terminated_by_timeout = false;
+        let status = if let Some(secs) = timeout {
+            // Poll until timeout, then send SIGTERM
+            let deadline = std::time::Instant::now() + Duration::from_secs(secs);
+            'wait: loop {
+                match child
+                    .try_wait()
+                    .with_context(|| format!("Failed to poll app {}: {}", i, path))?
+                {
+                    Some(s) => break s,
+                    None if std::time::Instant::now() >= deadline => {
+                        println!("App {}: timeout reached, sending SIGTERM to {}", i, path);
+                        terminated_by_timeout = true;
+                        send_sigterm(&child)
+                            .with_context(|| format!("Failed to send SIGTERM to app {}: {}", i, path))?;
 
-        if !status.success() {
-            // anyhow::bail!("App {}: command `{}` exited with status {}", i, path, status);
+                        // Give the process a chance to perform graceful shutdown.
+                        let grace_deadline = std::time::Instant::now() + Duration::from_secs(5);
+                        loop {
+                            match child
+                                .try_wait()
+                                .with_context(|| format!("Failed to poll app {} during grace period: {}", i, path))?
+                            {
+                                Some(s) => break 'wait s,
+                                None if std::time::Instant::now() >= grace_deadline => {
+                                    println!("App {}: grace period expired, sending SIGKILL to {}", i, path);
+                                    let _ = child.kill();
+                                    break 'wait child.wait().with_context(|| {
+                                        format!("Failed to wait after SIGKILL for app {}: {}", i, path)
+                                    })?;
+                                },
+                                None => std::thread::sleep(Duration::from_millis(100)),
+                            }
+                        }
+                    },
+                    None => std::thread::sleep(Duration::from_millis(100)),
+                }
+            }
+        } else {
+            child
+                .wait()
+                .with_context(|| format!("Failed to wait for app {}: {}", i, path))?
+        };
+
+        if terminated_by_timeout {
+            println!("App {}: stopped after timeout {}", i, path);
+        } else if status.success() {
+            println!("App {}: finished {}", i, path);
+        } else {
+            println!("App {}: FAILED ({}) {}", i, status, path);
+            failures.push(format!("app {} ({}) exited with {}", i, path, status));
         }
-
-        println!("App {}: finished {}", i, path);
     }
 
-    println!("✅ Example '{}' finished successfully.", config.name);
-    Ok(())
+    if failures.is_empty() {
+        println!("✅ Example '{}' finished successfully.", config.name);
+        Ok(())
+    } else {
+        anyhow::bail!("Example '{}' failed: {}", config.name, failures.join("; "))
+    }
+}
+
+fn send_sigterm(child: &Child) -> Result<()> {
+    let pid = child.id().to_string();
+    let status = Command::new("kill")
+        .args(["-TERM", &pid])
+        .status()
+        .with_context(|| format!("Failed to execute kill -TERM for pid {}", pid))?;
+
+    if status.success() {
+        Ok(())
+    } else {
+        anyhow::bail!("kill -TERM {} exited with status {}", pid, status)
+    }
 }

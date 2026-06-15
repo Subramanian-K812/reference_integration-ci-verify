@@ -1,0 +1,83 @@
+diff -ur a/score/mw/log/rust/score_log_bridge/BUILD b/score/mw/log/rust/score_log_bridge/BUILD
+--- a/score/mw/log/rust/score_log_bridge/BUILD	2026-06-10 09:59:02.186911252 +0000
++++ b/score/mw/log/rust/score_log_bridge/BUILD	2026-06-10 09:59:18.997741540 +0000
+@@ -23,6 +23,14 @@
+ )
+ 
+ config_setting(
++    name = "arm64-linux",
++    constraint_values = [
++        "@platforms//cpu:arm64",
++        "@platforms//os:linux",
++    ],
++)
++
++config_setting(
+     name = "arm64-qnx",
+     constraint_values = [
+         "@platforms//cpu:arm64",
+@@ -44,6 +52,7 @@
+     # C++/Rust interface objects must share layout.
+     defines = select({
+         ":x86_64-linux": ["x86_64_linux"],
++        ":arm64-linux": ["arm64_linux"],
+         ":arm64-qnx": ["arm64_qnx"],
+         ":x86_64-qnx": ["x86_64_qnx"],
+         "//conditions:default": [],
+@@ -65,6 +74,7 @@
+     # C++/Rust interface objects must share layout.
+     crate_features = select({
+         ":x86_64-linux": ["x86_64_linux"],
++        ":arm64-linux": ["arm64_linux"],
+         ":arm64-qnx": ["arm64_qnx"],
+         ":x86_64-qnx": ["x86_64_qnx"],
+         "//conditions:default": [],
+@@ -94,6 +104,7 @@
+     crate = "score_log_bridge",
+     crate_features = select({
+         ":x86_64-linux": ["x86_64_linux"],
++        ":arm64-linux": ["arm64_linux"],
+         ":arm64-qnx": ["arm64_qnx"],
+         ":x86_64-qnx": ["x86_64_qnx"],
+         "//conditions:default": [],
+diff -ur a/score/mw/log/rust/score_log_bridge/src/adapter.cpp b/score/mw/log/rust/score_log_bridge/src/adapter.cpp
+--- a/score/mw/log/rust/score_log_bridge/src/adapter.cpp	2026-06-10 09:59:02.191244585 +0000
++++ b/score/mw/log/rust/score_log_bridge/src/adapter.cpp	2026-06-10 09:59:18.997741540 +0000
+@@ -23,7 +23,7 @@
+ // Those parameters must be:
+ // - managed by build system (using defines and features)
+ // - cross-checked between `ffi.rs` and `adapter.cpp`
+-#if defined(x86_64_linux) || defined(arm64_qnx) || defined(x86_64_qnx)
++#if defined(x86_64_linux) || defined(arm64_linux) || defined(arm64_qnx) || defined(x86_64_qnx)
+ // Expected size and alignment of `SlotHandle`.
+ static_assert(sizeof(SlotHandle) == 24);
+ static_assert(alignof(SlotHandle) == 8);
+diff -ur a/score/mw/log/rust/score_log_bridge/src/ffi.rs b/score/mw/log/rust/score_log_bridge/src/ffi.rs
+--- a/score/mw/log/rust/score_log_bridge/src/ffi.rs	2026-06-10 09:59:02.195577916 +0000
++++ b/score/mw/log/rust/score_log_bridge/src/ffi.rs	2026-06-10 09:59:18.997741540 +0000
+@@ -180,13 +180,23 @@
+ /// Those parameters must be:
+ /// - managed by build system (using defines and features)
+ /// - cross-checked between `ffi.rs` and `adapter.cpp`
+-#[cfg(any(feature = "x86_64_linux", feature = "arm64_qnx", feature = "x86_64_qnx"))]
++#[cfg(any(
++    feature = "x86_64_linux",
++    feature = "arm64_linux",
++    feature = "arm64_qnx",
++    feature = "x86_64_qnx"
++))]
+ #[repr(C, align(8))]
+ pub struct SlotHandleStorage {
+     _private: [u8; 24],
+ }
+ 
+-#[cfg(not(any(feature = "x86_64_linux", feature = "arm64_qnx", feature = "x86_64_qnx")))]
++#[cfg(not(any(
++    feature = "x86_64_linux",
++    feature = "arm64_linux",
++    feature = "arm64_qnx",
++    feature = "x86_64_qnx"
++)))]
+ compile_error!("Unknown configuration, unable to check layout");
+ 
+ impl SlotHandleStorage {

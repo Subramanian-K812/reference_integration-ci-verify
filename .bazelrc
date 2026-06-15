@@ -49,6 +49,11 @@ build:eb-aarch64 --config=_common
 build:eb-aarch64 --extra_toolchains=@score_ebclfsa_toolchain//:aarch64-linux-sdk_0.1.0-ebclfsa
 build:eb-aarch64 --extra_toolchains=@ferrocene_aarch64_ebclfsa//:rust_ferrocene_toolchain
 build:eb-aarch64 --platforms=@score_bazel_platforms//:aarch64-linux-sdk_0.1.0-ebclfsa
+# GCC-13 emits calls to libgcc's outline-atomics helpers (__aarch64_cas*_*) by
+# default. When Ferrocene rustc drives the final link of mixed Rust+C++
+# binaries it passes -nodefaultlibs, so libgcc.a is never pulled in and the
+# helpers stay unresolved. Inline atomics avoid the dependency entirely.
+build:eb-aarch64 --copt=-mno-outline-atomics
 
 build:autosd-x86_64 --config=_common
 build:autosd-x86_64 --force_pic

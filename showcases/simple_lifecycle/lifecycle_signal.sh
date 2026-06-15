@@ -26,5 +26,16 @@ if running_on_qnx
 then
     slay -s $signal -f $process_name
 else
-    pkill -$signal -f $process_name
+    # `pkill -f` matches against the whole command line, which also matches
+    # this helper script itself (its own argv contains "$process_name"). That
+    # made the script kill itself with the very signal it was sending, exiting
+    # non-zero. Iterate the matches and skip our own PID so only the real
+    # target process(es) get signalled. `-f` is still required because the
+    # supervised binary names exceed the 15-char /proc/<pid>/comm limit.
+    # `kill -s` in POSIX sh (dash) expects the signal name without the "SIG"
+    # prefix (e.g. TERM, USR1), so strip it if present.
+    for pid in $(pgrep -f "$process_name"); do
+        [ "$pid" -eq "$$" ] && continue
+        kill -s "${signal#SIG}" "$pid"
+    done
 fi

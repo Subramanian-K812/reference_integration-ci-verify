@@ -1,0 +1,11 @@
+{
+    "name": "Logging Rust builtin backend example",
+    "description": "Demonstrates the SCORE Rust structured logging API using the built-in stdout backend, showing how to initialize a logger with context and emit trace, debug, info, warn, error and fatal log messages",
+    "apps": [
+        {
+            "path": "/showcases/bin/log_builtin",
+            "args": [],
+            "env": {}
+        }
+    ]
+}
