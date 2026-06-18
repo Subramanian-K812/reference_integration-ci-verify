@@ -43,6 +43,9 @@ on:
     types: [checks_requested]
   release:
     types: [created]
+  workflow_dispatch: # Manual trigger — used to test this workflow from a feature branch
+    # (pull_request_target always runs the base-branch workflow, so workflow_dispatch
+    # is the only way to exercise the new structure before it merges to main)
 # Do not flood CI with unneeded previous runs in PR
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
