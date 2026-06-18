@@ -39,6 +39,7 @@ on:
   push:
     branches:
       - main
+      - Subramanian-K812_update_test_workflow_dr8 # temporary: test new workflow before merge
   merge_group:
     types: [checks_requested]
   release:
@@ -271,6 +272,8 @@ jobs:
     name: Deploy Documentation to GitHub Pages
     runs-on: ${{ vars.REPO_RUNNER_LABELS && fromJSON(vars.REPO_RUNNER_LABELS) || 'ubuntu-latest' }}
     needs: stage1_integration
+    environment:
+      name: github-pages
     permissions:
       pages: write
       id-token: write
