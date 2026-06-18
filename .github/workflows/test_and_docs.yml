@@ -10,6 +10,23 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 # *******************************************************************************
+# Two-stage quality workflow aligned with DR-008 Option 4.
+#
+# Stage 1 (stage1_integration): build the integrated platform, run Feature
+#   Integration Tests, and publish the resolved dependency set (MODULE.bazel.lock
+#   + generated git_override files) as an artifact for traceability.
+#
+# Stage 2 (stage2_module_validation): per-module matrix — unit tests + coverage
+#   analysis run inside the reference_integration Bazel graph (the generated
+#   git_override MODULE.bazel files act as the dependency injection).  Each
+#   module job uploads its quality report as an artifact.
+#
+# Aggregate (aggregate): downloads all Stage 2 reports, renders a consolidated
+#   quality report to the GitHub Step Summary, and (on tags) creates the
+#   combined test-report ZIP for the GitHub Release.
+#
+# Docs / docs-deploy: unchanged from the previous workflow; depends on
+#   stage1_integration which builds and uploads the pages artifact.
 name: Code Quality & Documentation
 permissions:
   contents: write
@@ -33,10 +50,20 @@ concurrency:
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 jobs:
-  test_and_docs:
+  # ---------------------------------------------------------------------------
+  # Stage 1 — Integration-Scoped
+  # Builds the integrated platform and runs Feature Integration Tests.
+  # Publishes the Bazel-resolved dependency set (MODULE.bazel.lock +
+  # generated score_modules_*.MODULE.bazel) as the stage1-resolved-deps
+  # artifact, satisfying the "resolve complete dependency set incl. transitive
+  # deps" requirement of DR-008 Option 4.
+  # Also builds and uploads the GitHub Pages documentation artifact.
+  # ---------------------------------------------------------------------------
+  stage1_integration:
+    name: "Stage 1 — Platform Build & Feature Integration Tests"
     runs-on: ubuntu-latest
     permissions:
-      contents: write # required to upload release assets
+      contents: write
       pull-requests: write
     steps:
       - name: Clean disk space
@@ -45,17 +72,13 @@ jobs:
         uses: bazel-contrib/setup-bazel@0.18.0
         with:
           bazelisk-cache: true
-          disk-cache: ${{ github.workflow }}
+          disk-cache: ${{ github.workflow }}-stage1
           repository-cache: true
           cache-save: ${{ github.event_name == 'push' }}
       - name: Set up Python 3
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install lcov
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y lcov
       - name: Checkout repository (pull_request_target via workflow_call)
         if: ${{ github.event_name == 'pull_request_target' }}
         uses: actions/checkout@v4
@@ -65,41 +88,23 @@ jobs:
       - name: Checkout repository
         if: ${{ github.event_name != 'pull_request_target' }}
         uses: actions/checkout@v4
-      - name: Execute Unit Tests with Coverage Analysis
-        run: |
-          python ./scripts/quality_runners.py
       - name: Execute Feature Integration Tests
         run: |
-          bazel test --config=linux-x86_64 //feature_integration_tests/test_cases:fit
-      - name: Publish build summary
+          bazel test --lockfile_mode=error --config=linux-x86_64 //feature_integration_tests/test_cases:fit
+      - name: Publish resolved dependency set
         if: always()
         run: |
-          if [ -f docs/verification_report/unit_test_summary.md ]; then
-            cat docs/verification_report/unit_test_summary.md >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "No build summary file found (docs/verification_report/unit_test_summary.md)" >> "$GITHUB_STEP_SUMMARY"
-          fi
-          echo "" >> "$GITHUB_STEP_SUMMARY" # Add a newline for better formatting
-          if [ -f docs/verification_report/coverage_summary.md ]; then
-            cat docs/verification_report/coverage_summary.md >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "No coverage summary file found (docs/verification_report/coverage_summary.md)" >> "$GITHUB_STEP_SUMMARY"
-          fi
-      - name: Create archive of test reports
-        if: github.ref_type == 'tag'
-        run: |
-          mkdir -p artifacts
-          find bazel-testlogs/external -name 'test.xml' -print0 | xargs -0 -I{} cp --parents {} artifacts/
-          cp -r "$(bazel info --lockfile_mode=error bazel-bin)/coverage/rust-tests" artifacts/rust
-          zip -r ${{ github.event.repository.name }}_test_reports.zip artifacts/
-        shell: bash
-      - name: Upload release asset (attach ZIP to GitHub Release)
-        uses: softprops/action-gh-release@v2.5.0
-        if: github.ref_type == 'tag'
+          mkdir -p artifacts/stage1-resolved-deps
+          cp MODULE.bazel.lock artifacts/stage1-resolved-deps/
+          cp bazel_common/score_modules_*.MODULE.bazel artifacts/stage1-resolved-deps/
+      - name: Upload resolved dependency set artifact
+        if: always()
+        uses: actions/upload-artifact@v4.4.0
         with:
-          files: ${{ github.event.repository.name }}_test_reports.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: stage1-resolved-deps
+          path: artifacts/stage1-resolved-deps/
+          retention-days: 14
+          if-no-files-found: warn
       - name: Install Graphviz
         uses: eclipse-score/apt-install@main
         with:
@@ -126,10 +131,143 @@ jobs:
           path: github-pages.tar
           retention-days: 3
           if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Stage 2 — Module-Scoped (ref_int-orchestrated)
+  # Runs per-module unit tests + coverage inside the reference_integration
+  # Bazel graph.  The generated bazel_common/score_modules_target_sw.MODULE.bazel
+  # (git_override blocks from known_good.json) acts as the dependency injection
+  # mechanism — each module is tested against the versions resolved in Stage 1,
+  # without modifying the module's released sources.
+  #
+  # Each matrix job is isolated; fail-fast: false ensures one module's failure
+  # does not hide the results of others.
+  # ---------------------------------------------------------------------------
+  stage2_module_validation:
+    name: "Stage 2 — Module UT & Coverage (${{ matrix.module }})"
+    needs: stage1_integration
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - score_baselibs
+          - score_baselibs_rust
+          - score_communication
+          - score_persistency
+          - score_orchestrator
+          - score_kyron
+          - score_lifecycle_health
+          - score_logging
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clean disk space
+        uses: eclipse-score/more-disk-space@v1
+      - name: Setup Bazel
+        uses: bazel-contrib/setup-bazel@0.18.0
+        with:
+          bazelisk-cache: true
+          disk-cache: ${{ github.workflow }}-stage2-${{ matrix.module }}
+          repository-cache: true
+          cache-save: ${{ github.event_name == 'push' }}
+      - name: Set up Python 3
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install lcov
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lcov
+      - name: Checkout repository (pull_request_target via workflow_call)
+        if: ${{ github.event_name == 'pull_request_target' }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.event.pull_request.head.ref || github.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+      - name: Checkout repository
+        if: ${{ github.event_name != 'pull_request_target' }}
+        uses: actions/checkout@v4
+      - name: Execute Unit Tests with Coverage Analysis
+        run: |
+          python ./scripts/quality_runners.py --modules-to-test ${{ matrix.module }}
+      - name: Upload module quality report
+        if: always()
+        uses: actions/upload-artifact@v4.4.0
+        with:
+          name: stage2-report-${{ matrix.module }}
+          path: docs/verification_report/
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Upload module test logs and coverage
+        if: always()
+        uses: actions/upload-artifact@v4.4.0
+        with:
+          name: stage2-testlogs-${{ matrix.module }}
+          path: |
+            bazel-testlogs/external/
+            artifacts/coverage/
+          retention-days: 14
+          if-no-files-found: warn
+
+  # ---------------------------------------------------------------------------
+  # Aggregate — consolidate Stage 1 + Stage 2 results into one quality report.
+  # Also handles the release-tag test-report ZIP (formerly in test_and_docs).
+  # ---------------------------------------------------------------------------
+  aggregate:
+    name: "Aggregate Quality Report"
+    needs: [stage1_integration, stage2_module_validation]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository (pull_request_target via workflow_call)
+        if: ${{ github.event_name == 'pull_request_target' }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.event.pull_request.head.ref || github.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+      - name: Checkout repository
+        if: ${{ github.event_name != 'pull_request_target' }}
+        uses: actions/checkout@v4
+      - name: Set up Python 3
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download Stage 2 quality reports
+        uses: actions/download-artifact@v4.1.8
+        with:
+          pattern: stage2-report-*
+          path: _stage2_reports/
+      - name: Create archive of test reports
+        if: github.ref_type == 'tag'
+        run: |
+          mkdir -p artifacts/test-reports
+          find _stage2_reports -name 'test.xml' -print0 | \
+            xargs -0 -I{} cp --parents {} artifacts/test-reports/ 2>/dev/null || true
+          zip -r ${{ github.event.repository.name }}_test_reports.zip artifacts/test-reports/
+        shell: bash
+      - name: Upload release asset (attach ZIP to GitHub Release)
+        uses: softprops/action-gh-release@v2.5.0
+        if: github.ref_type == 'tag'
+        with:
+          files: ${{ github.event.repository.name }}_test_reports.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish consolidated quality report
+        if: always()
+        run: |
+          python3 scripts/aggregate_quality_report.py \
+            --stage1-result "${{ needs.stage1_integration.result }}" \
+            --stage2-result "${{ needs.stage2_module_validation.result }}" \
+            --stage2-dir "_stage2_reports/" \
+            >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # Docs deploy — unchanged; depends on stage1_integration which uploads the
+  # github-pages artifact produced by the documentation build step.
+  # ---------------------------------------------------------------------------
   docs-deploy:
     name: Deploy Documentation to GitHub Pages
     runs-on: ${{ vars.REPO_RUNNER_LABELS && fromJSON(vars.REPO_RUNNER_LABELS) || 'ubuntu-latest' }}
-    needs: test_and_docs
+    needs: stage1_integration
     permissions:
       pages: write
       id-token: write
