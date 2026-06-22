@@ -39,7 +39,6 @@ on:
   push:
     branches:
       - main
-      - Subramanian-K812_update_test_workflow_dr8 # temporary: test new workflow before merge
   merge_group:
     types: [checks_requested]
   release:
