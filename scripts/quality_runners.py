@@ -54,14 +54,31 @@ def run_unit_test_with_coverage(module: Module, workspace: Path | None = None) -
     in_module = workspace is not None
     repo = "" if in_module else f"@{module.name}"
 
+    # --config=unit-tests   is defined as "test:unit-tests" in ref_int's .bazelrc,
+    # so Bazel ignores it for the "coverage" command and the module's .bazelrc has no
+    # such entry at all. --config=ferrocene-coverage references @score_tooling which
+    # is not in the module's own dep graph. Both are ref_int-specific; expand them to
+    # their individual flags when running inside a module checkout.
+    if in_module:
+        config_flags = [
+            "--build_tests_only",
+            "--test_tag_filters=-manual",
+        ]
+    else:
+        config_flags = [
+            "--config=unit-tests",
+            "--config=ferrocene-coverage",
+        ]
+
     call = (
         [
             "bazel",
             "coverage",  # Call coverage instead of test to get .dat files already
             "--test_verbose_timeout_warnings",
             "--test_timeout=1200",
-            "--config=unit-tests",
-            "--config=ferrocene-coverage",
+        ]
+        + config_flags
+        + [
             "--test_summary=testcase",
             "--test_output=errors",
             "--nocache_test_results",
