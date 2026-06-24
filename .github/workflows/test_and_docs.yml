@@ -66,7 +66,8 @@ jobs:
   # generated score_modules_*.MODULE.bazel) as the stage1-resolved-deps
   # artifact, satisfying the "resolve complete dependency set incl. transitive
   # deps" requirement of DR-008 Option 4.
-  # Also builds and uploads the GitHub Pages documentation artifact.
+  # Documentation is built in a separate parallel job (docs_build) so that
+  # a Sphinx warning does not block Stage 2 validation.
   # ---------------------------------------------------------------------------
   stage1_integration:
     name: "Stage 1 — Platform Build & Feature Integration Tests"
@@ -114,8 +115,40 @@ jobs:
           path: artifacts/stage1-resolved-deps/
           retention-days: 14
           if-no-files-found: warn
-      # Graphviz is only needed by the documentation build below, so install it
-      # immediately before that step (reviewer R5).
+
+  # ---------------------------------------------------------------------------
+  # Documentation build — runs in parallel with Stage 1 so Sphinx warnings
+  # never block Stage 2. docs-deploy depends on this job, not stage1_integration.
+  # ---------------------------------------------------------------------------
+  docs_build:
+    name: "Build Documentation"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Clean disk space
+        uses: eclipse-score/more-disk-space@v1
+      - name: Setup Bazel
+        uses: bazel-contrib/setup-bazel@0.18.0
+        with:
+          bazelisk-cache: true
+          disk-cache: ${{ github.workflow }}-docs
+          repository-cache: true
+          cache-save: ${{ github.event_name == 'push' }}
+      - name: Set up Python 3
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Checkout repository (pull_request_target)
+        if: ${{ github.event_name == 'pull_request_target' }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.event.pull_request.head.ref || github.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+      - name: Checkout repository
+        if: ${{ github.event_name != 'pull_request_target' }}
+        uses: actions/checkout@v4
       - name: Install Graphviz
         uses: eclipse-score/apt-install@main
         with:
@@ -314,13 +347,13 @@ jobs:
             >> "$GITHUB_STEP_SUMMARY"
 
   # ---------------------------------------------------------------------------
-  # Docs deploy — unchanged; depends on stage1_integration which uploads the
-  # github-pages artifact produced by the documentation build step.
+  # Docs deploy — depends on docs_build (separate parallel job) which uploads
+  # the github-pages artifact.
   # ---------------------------------------------------------------------------
   docs-deploy:
     name: Deploy Documentation to GitHub Pages
     runs-on: ${{ vars.REPO_RUNNER_LABELS && fromJSON(vars.REPO_RUNNER_LABELS) || 'ubuntu-latest' }}
-    needs: stage1_integration
+    needs: docs_build
     environment:
       name: github-pages
     permissions:
