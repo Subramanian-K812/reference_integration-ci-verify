@@ -21,6 +21,7 @@ from subprocess import PIPE, Popen
 
 from known_good.models.known_good import load_known_good
 from known_good.models.module import Module
+from known_good.resolved_dependencies import ResolvedDependencies
 
 
 @dataclass
@@ -34,8 +35,24 @@ def print_centered(message: str, width: int = 120, fillchar: str = "-") -> None:
     print(message.center(width, fillchar))
 
 
-def run_unit_test_with_coverage(module: Module) -> dict[str, str | int]:
+def run_unit_test_with_coverage(module: Module, workspace: Path | None = None) -> dict[str, str | int]:
+    """Run a module's unit tests + coverage.
+
+    When ``workspace`` is None (central/legacy mode) the module is addressed through
+    ref_int's Bazel graph as ``@<module>//...``.
+
+    When ``workspace`` is a checked-out module directory (DR-008 Option 4 mode), the
+    module *is* the Bazel root, so targets are plain ``//...`` and the command runs with
+    ``cwd=workspace``. ``--lockfile_mode=off`` is added so the resolved-deps overrides
+    injected into the module's MODULE.bazel take effect even though the module commits a
+    lockfile with ``--lockfile_mode=error`` (we control the flag because we invoke Bazel
+    ourselves rather than calling the module's own CI). Instrumentation falls back to
+    Bazel's default (root code instrumented, external deps excluded).
+    """
     print_centered("QR: Running unit tests")
+
+    in_module = workspace is not None
+    repo = "" if in_module else f"@{module.name}"
 
     call = (
         [
@@ -48,51 +65,53 @@ def run_unit_test_with_coverage(module: Module) -> dict[str, str | int]:
             "--test_summary=testcase",
             "--test_output=errors",
             "--nocache_test_results",
-            f"--instrumentation_filter=@{module.name}",
-            f"@{module.name}{module.metadata.code_root_path}",
         ]
+        + (["--lockfile_mode=off"] if in_module else [f"--instrumentation_filter=@{module.name}"])
+        + [f"{repo}{module.metadata.code_root_path}"]
         + [f"--{target}" for target in module.metadata.extra_test_config]
         + ["--"]
         + [
             # Exclude test targets specified in module metadata, if any
-            f"-@{module.name}{target}"
+            f"-{repo}{target}"
             for target in module.metadata.exclude_test_targets
         ]
     )
 
-    result = run_command(call)
+    result = run_command(call, cwd=str(workspace)) if in_module else run_command(call)
     summary = extract_ut_summary(result.stdout)
     return {**summary, "exit_code": result.exit_code}
 
 
-def run_cpp_coverage_extraction(module: Module, output_path: Path) -> int:
+def run_cpp_coverage_extraction(module: Module, output_path: Path, workspace: Path | None = None) -> int:
     print_centered("QR: Running cpp coverage analysis")
 
-    result_cpp = cpp_coverage(module, output_path)
+    result_cpp = cpp_coverage(module, output_path, workspace=workspace)
     summary = extract_coverage_summary(result_cpp.stdout)
 
     return {**summary, "exit_code": result_cpp.exit_code}
 
 
-def run_rust_coverage_extraction(module: Module, output_path: Path) -> int:
+def run_rust_coverage_extraction(module: Module, output_path: Path, workspace: Path | None = None) -> int:
     print_centered("QR: Running rust coverage analysis")
 
-    result_rust = rust_coverage(module, output_path)
+    result_rust = rust_coverage(module, output_path, workspace=workspace)
     summary = extract_coverage_summary(result_rust.stdout)
 
     return {**summary, "exit_code": result_rust.exit_code}
 
 
-def cpp_coverage(module: Module, artifact_dir: Path) -> ProcessResult:
+def cpp_coverage(module: Module, artifact_dir: Path, workspace: Path | None = None) -> ProcessResult:
     # .dat files are already generated in UT step
 
     # Run genhtml to generate the HTML report and get the summary
     # Create dedicated output directory for this module's coverage reports
     output_dir = artifact_dir / "cpp" / module.name
     output_dir.mkdir(parents=True, exist_ok=True)
-    # Find input locations
-    bazel_coverage_output_directory = run_command(["bazel", "info", "output_path"]).stdout.strip()
-    bazel_source_directory = run_command(["bazel", "info", "output_base"]).stdout.strip()
+    # Find input locations. In module-context mode (DR-008 Option 4) Bazel runs inside the
+    # checked-out module, so query its output paths with cwd=workspace.
+    info_cwd = {"cwd": str(workspace)} if workspace is not None else {}
+    bazel_coverage_output_directory = run_command(["bazel", "info", "output_path"], **info_cwd).stdout.strip()
+    bazel_source_directory = run_command(["bazel", "info", "output_base"], **info_cwd).stdout.strip()
 
     genhtml_call = [
         "genhtml",
@@ -110,13 +129,20 @@ def cpp_coverage(module: Module, artifact_dir: Path) -> ProcessResult:
     return genhtml_result
 
 
-def rust_coverage(module: Module, artifact_dir: Path) -> ProcessResult:
+def rust_coverage(module: Module, artifact_dir: Path, workspace: Path | None = None) -> ProcessResult:
     # .profraw files are already generated in UT step
 
     # Run bazel covverage target
     # Create dedicated output directory for this module's coverage reports
     output_dir = artifact_dir / "rust" / module.name
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    if workspace is not None:
+        # The rust_coverage_<module> target is generated in ref_int's rust_coverage/BUILD
+        # and does not exist inside a module checkout. Module-context (DR-008 Option 4)
+        # Rust coverage is tracked as a follow-up; skip without failing the job.
+        print_centered(f"QR: Skipping ref_int rust_coverage target for {module.name} in module-context mode")
+        return ProcessResult(stdout="", stderr="", exit_code=0)
 
     bazel_call = [
         "bazel",
@@ -277,6 +303,28 @@ def parse_arguments() -> argparse.Namespace:
         default=[],
         help="List of modules to test",
     )
+    parser.add_argument(
+        "--module-dir",
+        type=Path,
+        default=None,
+        help=(
+            "DR-008 Option 4 module-context mode: path to a checked-out module. The "
+            "module's MODULE.bazel is overwritten with the resolved dependency set "
+            "(see --resolved-deps / --known-good-path) and its tests run as the Bazel "
+            "root (//...) instead of through ref_int (@<module>//...). Only valid with "
+            "a single --modules-to-test entry."
+        ),
+    )
+    parser.add_argument(
+        "--resolved-deps",
+        type=Path,
+        default=None,
+        help=(
+            "Module-context mode: directory of the Stage-1 'stage1-resolved-deps' artifact "
+            "(MODULE.bazel.lock + score_modules_*.MODULE.bazel) used as the resolved set to "
+            "inject. Defaults to --known-good-path when omitted."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -292,17 +340,32 @@ def main() -> bool:
     if args.modules_to_test:
         print_centered(f"QR: User requested tests only for specified modules: {', '.join(args.modules_to_test)}")
 
+    workspace = args.module_dir
+    if workspace is not None:
+        if len(args.modules_to_test) != 1:
+            raise SystemExit("--module-dir requires exactly one --modules-to-test entry")
+        # DR-008 Option 4: overwrite the checked-out module's declared dependency versions
+        # with the dependency set ref_int resolved (Stage-1 artifact, falling back to
+        # known_good.json), so the module's tests run against the resolved versions.
+        if args.resolved_deps is not None:
+            resolved = ResolvedDependencies.from_resolved_artifact(args.resolved_deps.resolve())
+        else:
+            resolved = ResolvedDependencies.from_known_good(args.known_good_path.resolve())
+        module_bazel = workspace.resolve() / "MODULE.bazel"
+        print_centered(f"QR: Injecting resolved deps into {module_bazel}")
+        resolved.overwrite(module_bazel, module_under_test=args.modules_to_test[0])
+
     for module in known.modules["target_sw"].values():
         if args.modules_to_test and module.name not in args.modules_to_test:
             print_centered(f"QR: Skipping module {module.name}")
             continue
 
         print_centered(f"QR: Testing module: {module.name}")
-        unit_tests_summary[module.name] = run_unit_test_with_coverage(module=module)
+        unit_tests_summary[module.name] = run_unit_test_with_coverage(module=module, workspace=workspace)
 
         if "cpp" in module.metadata.langs:
             coverage_summary[f"{module.name}_cpp"] = run_cpp_coverage_extraction(
-                module=module, output_path=args.coverage_output_dir
+                module=module, output_path=args.coverage_output_dir, workspace=workspace
             )
 
         if "rust" in module.metadata.langs:
@@ -314,7 +377,7 @@ def main() -> bool:
                 print_centered(f"QR: Skipping rust coverage extraction for module {module.name} due to known issues")
                 continue
             coverage_summary[f"{module.name}_rust"] = run_rust_coverage_extraction(
-                module=module, output_path=args.coverage_output_dir
+                module=module, output_path=args.coverage_output_dir, workspace=workspace
             )
 
         print_centered(f"QR: Finished testing module: {module.name}")

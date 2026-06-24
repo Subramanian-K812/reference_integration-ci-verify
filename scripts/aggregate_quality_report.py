@@ -31,6 +31,7 @@ coverage_summary.md produced by quality_runners.py.
 """
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -77,6 +78,27 @@ def _extract_table_data_rows(md_path: Path) -> list[str]:
     return data_rows
 
 
+def _excluded_test_targets(known_good_path: Path) -> list[tuple[str, list[str]]]:
+    """Return [(module, [excluded targets])] for target_sw modules in known_good.json.
+
+    These targets are excluded from Stage 2 (e.g. they depend on dev_dependency-only
+    deps) and so are absent from the consolidated report — they are still covered by
+    each module's own CI. Surfacing them keeps the report honest about completeness.
+    """
+    if not known_good_path.exists():
+        return []
+
+    data = json.loads(known_good_path.read_text(encoding="utf-8"))
+    target_sw = data.get("modules", {}).get("target_sw", {})
+
+    excluded: list[tuple[str, list[str]]] = []
+    for name in sorted(target_sw):
+        targets = target_sw[name].get("metadata", {}).get("exclude_test_targets", [])
+        if targets:
+            excluded.append((name, targets))
+    return excluded
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Aggregate Stage 1 + Stage 2 quality reports (DR-008 Option 4).",
@@ -105,6 +127,12 @@ def main() -> int:
         type=Path,
         default=Path("_stage2_reports"),
         help="Directory containing downloaded stage2-report-* artifact subdirectories.",
+    )
+    parser.add_argument(
+        "--known-good-path",
+        type=Path,
+        default=Path("known_good.json"),
+        help="Path to known_good.json (used to list test targets excluded from Stage 2).",
     )
     args = parser.parse_args()
 
@@ -159,6 +187,24 @@ def main() -> int:
         out.write("|--------|-------|-----------|----------|\n")
         for row in cov_rows:
             out.write(f"{row}\n")
+        out.write("\n")
+
+    # ------------------------------------------------------------------
+    # Excluded test targets — completeness disclosure (DR-008 Q4)
+    # ------------------------------------------------------------------
+    excluded = _excluded_test_targets(args.known_good_path)
+    if excluded:
+        out.write("### Test Targets Excluded from Stage 2\n\n")
+        out.write(
+            "These targets are excluded from central Stage 2 execution (typically because "
+            "they depend on `dev_dependency`-only deps that are not visible from the resolved "
+            "graph). They are still validated by each module's own CI.\n\n"
+        )
+        out.write("| module | excluded test target |\n")
+        out.write("|--------|----------------------|\n")
+        for module_name, targets in excluded:
+            for target in targets:
+                out.write(f"| {module_name} | `{target}` |\n")
         out.write("\n")
 
     # ------------------------------------------------------------------
