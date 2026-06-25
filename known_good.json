@@ -5,6 +5,7 @@
                 "repo": "https://github.com/eclipse-score/baselibs.git",
                 "hash": "cab36dd7de92c282f67e78e88032e08585803528",
                 "metadata": {
+                    "bazel_config": ["bl-x86_64-linux"],
                     "extra_test_config": [
                         "@score_baselibs//score/json:base_library=nlohmann",
                         "@score_baselibs//score/memory/shared/flags:use_typedshmd=False"
@@ -24,6 +25,7 @@
                 "repo": "https://github.com/eclipse-score/baselibs_rust.git",
                 "hash": "4050b62f298b639d27c092f63858642c3d08f9a0",
                 "metadata": {
+                    "bazel_config": ["x86_64-linux", "ferrocene-coverage"],
                     "code_root_path": "//src/...",
                     "exclude_test_targets": [
                         "//src/log/score_log_fmt_macro:tests"
@@ -42,6 +44,7 @@
                     "//patches/communication:003-module-deps-visibility.patch"
                 ],
                 "metadata": {
+                    "bazel_config": ["linux_x86_64_score_gcc_12_2_0_posix"],
                     "code_root_path": "//score/mw/com/impl/...",
                     "exclude_test_targets": [
                         "//score/mw/com/impl:unit_test_runtime_single_exec",
@@ -56,6 +59,7 @@
                 "repo": "https://github.com/eclipse-score/persistency.git",
                 "hash": "4d1fa1ae3c55d27d0f1e863b8cdf59a148651c5d",
                 "metadata": {
+                    "bazel_config": ["per-x86_64-linux"],
                     "extra_test_config": [
                         "@score_baselibs_rust//src/log:safety_level=qm",
                         "@score_baselibs//score/json:base_library=nlohmann",
@@ -72,6 +76,7 @@
                 "repo": "https://github.com/eclipse-score/orchestrator.git",
                 "hash": "c5bcbd39fc6e124a26b1d66abbfc696a3319c2a4",
                 "metadata": {
+                    "bazel_config": ["x86_64-linux", "ferrocene-coverage"],
                     "code_root_path": "//src/...",
                     "langs": [
                         "rust"
@@ -82,6 +87,7 @@
                 "repo": "https://github.com/eclipse-score/kyron.git",
                 "hash": "fc9218cc23d5fc62dd45b2e9dfcc9403e71ab27a",
                 "metadata": {
+                    "bazel_config": ["x86_64-linux", "ferrocene-coverage"],
                     "code_root_path": "//src/...",
                     "langs": [
                         "rust"
@@ -90,8 +96,9 @@
             },
             "score_lifecycle_health": {
                 "repo": "https://github.com/eclipse-score/lifecycle.git",
-                "hash": "2f2e9c4c3e6c6b38abd0b72f78c8ffb96dc7f9e8",
+                "hash": "34afee91b745e080dc2c409d9653df8c8632fb64",
                 "metadata": {
+                    "bazel_config": ["x86_64-linux"],
                     "code_root_path": "//src/..."
                 }
             },
@@ -99,6 +106,7 @@
                 "repo": "https://github.com/eclipse-score/logging.git",
                 "hash": "0e9187f79a9935ca192779234b82f9d00dc4e335",
                 "metadata": {
+                    "bazel_config": ["x86_64-linux"],
                     "extra_test_config": [
                         "@score_logging//score/datarouter/build_configuration_flags:persistent_logging=False",
                         "@score_logging//score/datarouter/build_configuration_flags:persistent_config_feature_enabled=False",

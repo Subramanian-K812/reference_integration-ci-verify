@@ -60,10 +60,10 @@ def run_unit_test_with_coverage(module: Module, workspace: Path | None = None) -
     # is not in the module's own dep graph. Both are ref_int-specific; expand them to
     # their individual flags when running inside a module checkout.
     if in_module:
-        config_flags = [
-            "--build_tests_only",
-            "--test_tag_filters=-manual",
-        ]
+        config_flags = (
+            [f"--config={c}" for c in module.metadata.bazel_config]
+            + ["--build_tests_only", "--test_tag_filters=-manual"]
+        )
     else:
         config_flags = [
             "--config=unit-tests",
@@ -138,7 +138,7 @@ def cpp_coverage(module: Module, artifact_dir: Path, workspace: Path | None = No
         "--legend",
         "--function-coverage",
         "--branch-coverage",
-        "--ignore-errors=negative,negative,source,source",
+        "--ignore-errors=negative,negative,source,source,inconsistent",
         "--synthesize-missing",
     ]
     genhtml_result = run_command(genhtml_call, cwd=bazel_source_directory)

@@ -153,6 +153,27 @@ class TestOverwrite:
         assert 'module_name = "score_logging"' not in block  # respected pre-existing override
 
 
+class TestMetadataBazelConfig:
+    def test_bazel_config_roundtrip(self):
+        from models.module import Metadata
+
+        m = Metadata.from_dict({"bazel_config": ["bl-x86_64-linux"]})
+        assert m.bazel_config == ["bl-x86_64-linux"]
+        assert m.to_dict()["bazel_config"] == ["bl-x86_64-linux"]
+
+    def test_bazel_config_default_empty(self):
+        from models.module import Metadata
+
+        m = Metadata.from_dict({})
+        assert m.bazel_config == []
+
+    def test_bazel_config_multi(self):
+        from models.module import Metadata
+
+        m = Metadata.from_dict({"bazel_config": ["per-x86_64-linux", "ferrocene-coverage"]})
+        assert m.bazel_config == ["per-x86_64-linux", "ferrocene-coverage"]
+
+
 class TestFromResolvedArtifact:
     def test_requires_lockfile(self, tmp_path: Path):
         (tmp_path / "score_modules_target_sw.MODULE.bazel").write_text("bazel_dep(name='x')\n")
