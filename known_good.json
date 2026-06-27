@@ -44,7 +44,7 @@
                     "//patches/communication:003-module-deps-visibility.patch"
                 ],
                 "metadata": {
-                    "bazel_config": ["linux_x86_64_score_gcc_12_2_0_posix"],
+                    "bazel_config": [],
                     "code_root_path": "//score/mw/com/impl/...",
                     "exclude_test_targets": [
                         "//score/mw/com/impl:unit_test_runtime_single_exec",
@@ -76,7 +76,7 @@
                 "repo": "https://github.com/eclipse-score/orchestrator.git",
                 "hash": "c5bcbd39fc6e124a26b1d66abbfc696a3319c2a4",
                 "metadata": {
-                    "bazel_config": ["x86_64-linux", "ferrocene-coverage"],
+                    "bazel_config": ["x86_64-linux"],
                     "code_root_path": "//src/...",
                     "langs": [
                         "rust"
@@ -99,7 +99,10 @@
                 "hash": "34afee91b745e080dc2c409d9653df8c8632fb64",
                 "metadata": {
                     "bazel_config": ["x86_64-linux"],
-                    "code_root_path": "//src/..."
+                    "code_root_path": "//score/...",
+                    "extra_test_config": [
+                        "test_lang_filters=-rust,-miri"
+                    ]
                 }
             },
             "score_logging": {

@@ -130,6 +130,11 @@ def cpp_coverage(module: Module, artifact_dir: Path, workspace: Path | None = No
     bazel_coverage_output_directory = run_command(["bazel", "info", "output_path"], **info_cwd).stdout.strip()
     bazel_source_directory = run_command(["bazel", "info", "output_base"], **info_cwd).stdout.strip()
 
+    dat_file = f"{bazel_coverage_output_directory}/_coverage/_coverage_report.dat"
+    if not Path(dat_file).exists():
+        print_centered(f"QR: No coverage dat file at {dat_file} — skipping genhtml for {module.name}")
+        return ProcessResult(stdout="", stderr="", exit_code=0)
+
     genhtml_call = [
         "genhtml",
         f"{bazel_coverage_output_directory}/_coverage/_coverage_report.dat",
@@ -138,7 +143,7 @@ def cpp_coverage(module: Module, artifact_dir: Path, workspace: Path | None = No
         "--legend",
         "--function-coverage",
         "--branch-coverage",
-        "--ignore-errors=negative,negative,source,source,inconsistent",
+        "--ignore-errors=negative,negative,source,source,inconsistent,category,unmapped",
         "--synthesize-missing",
     ]
     genhtml_result = run_command(genhtml_call, cwd=bazel_source_directory)

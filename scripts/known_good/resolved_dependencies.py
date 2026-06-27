@@ -185,6 +185,10 @@ class ResolvedDependencies:
             module = self._resolved.get(name)
             if module is None:
                 continue  # third-party dep ref_int doesn't pin; resolves normally
+            # Strip bazel_patches: they reference //patches/... labels in ref_int's
+            # workspace which do not exist inside another module's checkout.
+            from dataclasses import replace as _replace
+            module = _replace(module, bazel_patches=None)
             directive = generate_override_directive(module)
             if directive is None:
                 continue
