@@ -50,8 +50,8 @@ on:
   release:
     types: [created]
   workflow_dispatch: # Manual trigger — used to test this workflow from a feature branch
-    # (pull_request_target always runs the base-branch workflow, so workflow_dispatch
-    # is the only way to exercise the new structure before it merges to main)
+  # (pull_request_target always runs the base-branch workflow, so workflow_dispatch
+  # is the only way to exercise the new structure before it merges to main)
 # Do not flood CI with unneeded previous runs in PR
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
@@ -115,7 +115,6 @@ jobs:
           path: artifacts/stage1-resolved-deps/
           retention-days: 14
           if-no-files-found: warn
-
   # ---------------------------------------------------------------------------
   # Documentation build — runs in parallel with Stage 1 so Sphinx warnings
   # never block Stage 2. docs-deploy depends on this job, not stage1_integration.
@@ -175,7 +174,6 @@ jobs:
           path: github-pages.tar
           retention-days: 3
           if-no-files-found: error
-
   # ---------------------------------------------------------------------------
   # Prepare the Stage 2 matrix dynamically from known_good.json's target_sw group.
   # The module list is NEVER hardcoded in this workflow (reviewer R1: "we need to
@@ -206,7 +204,6 @@ jobs:
         id: list
         run: |
           echo "modules=$(python scripts/known_good/list_modules.py --group target_sw)" >> "$GITHUB_OUTPUT"
-
   # ---------------------------------------------------------------------------
   # Stage 2 — Module-Scoped (DR-008 Option 4)
   # For each target_sw module: check the module out at its known_good commit,
@@ -293,7 +290,6 @@ jobs:
             artifacts/coverage/
           retention-days: 14
           if-no-files-found: warn
-
   # ---------------------------------------------------------------------------
   # Aggregate — consolidate Stage 1 + Stage 2 results into one quality report.
   # Also handles the release-tag test-report ZIP (formerly in test_and_docs).
@@ -345,7 +341,6 @@ jobs:
             --stage2-result "${{ needs.stage2_module_validation.result }}" \
             --stage2-dir "_stage2_reports/" \
             >> "$GITHUB_STEP_SUMMARY"
-
   # ---------------------------------------------------------------------------
   # Docs deploy — depends on docs_build (separate parallel job) which uploads
   # the github-pages artifact.

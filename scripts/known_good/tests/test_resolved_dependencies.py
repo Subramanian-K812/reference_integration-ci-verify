@@ -144,8 +144,7 @@ class TestOverwrite:
     def test_skips_dep_with_existing_override(self, resolved: ResolvedDependencies, tmp_path: Path):
         mod = tmp_path / "MODULE.bazel"
         mod.write_text(
-            MODULE_BAZEL
-            + '\ngit_override(\n    module_name = "score_logging",\n    commit = "deadbeef",\n'
+            MODULE_BAZEL + '\ngit_override(\n    module_name = "score_logging",\n    commit = "deadbeef",\n'
             '    remote = "https://example.com/x.git",\n)\n'
         )
         patched = resolved.overwrite(mod, module_under_test="score_persistency", write=False)

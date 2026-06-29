@@ -320,11 +320,7 @@ def main():
 
     # Derive build targets from known_good.json (build_config.json was removed in #101;
     # known_good.json is the single source of truth for module locations).
-    all_modules = {
-        name: module
-        for group in new_modules.values()
-        for name, module in group.items()
-    }
+    all_modules = {name: module for group in new_modules.values() for name, module in group.items()}
 
     # Build each module
     for group_name, module in all_modules.items():

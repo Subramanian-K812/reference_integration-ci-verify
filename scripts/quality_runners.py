@@ -60,10 +60,10 @@ def run_unit_test_with_coverage(module: Module, workspace: Path | None = None) -
     # is not in the module's own dep graph. Both are ref_int-specific; expand them to
     # their individual flags when running inside a module checkout.
     if in_module:
-        config_flags = (
-            [f"--config={c}" for c in module.metadata.bazel_config]
-            + ["--build_tests_only", "--test_tag_filters=-manual"]
-        )
+        config_flags = [f"--config={c}" for c in module.metadata.bazel_config] + [
+            "--build_tests_only",
+            "--test_tag_filters=-manual",
+        ]
     else:
         config_flags = [
             "--config=unit-tests",

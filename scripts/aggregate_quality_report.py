@@ -146,9 +146,7 @@ def main() -> int:
     out.write("## Stage 1 — Integration Results\n\n")
     out.write("| Check | Status |\n")
     out.write("|-------|--------|\n")
-    out.write(
-        f"| Platform Build + Feature Integration Tests (linux-x86_64) | {_format_status(args.stage1_result)} |\n"
-    )
+    out.write(f"| Platform Build + Feature Integration Tests (linux-x86_64) | {_format_status(args.stage1_result)} |\n")
     out.write("\n")
 
     # ------------------------------------------------------------------

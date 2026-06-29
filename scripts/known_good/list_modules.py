@@ -43,6 +43,7 @@ def repo_slug(repo_url: str) -> str:
     match = re.search(r"[:/]([^/:]+/[^/:]+?)(?:\.git)?/?$", repo_url or "")
     return match.group(1) if match else ""
 
+
 _HERE = Path(__file__).resolve().parent
 try:
     from known_good.models.known_good import load_known_good

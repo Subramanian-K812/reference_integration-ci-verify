@@ -62,7 +62,9 @@ INJECTION_END = "# --- END ref_int resolved-deps injection (DR-008 Option 4) ---
 # Capture the module name from any ``bazel_dep(name = "...")`` call (name is the first arg).
 _BAZEL_DEP_RE = re.compile(r'bazel_dep\(\s*name\s*=\s*"([^"]+)"')
 # Capture an existing override target so we don't inject a duplicate for the same module.
-_OVERRIDE_RE = re.compile(r'(?:git_override|single_version_override|local_path_override|archive_override)\(\s*module_name\s*=\s*"([^"]+)"')
+_OVERRIDE_RE = re.compile(
+    r'(?:git_override|single_version_override|local_path_override|archive_override)\(\s*module_name\s*=\s*"([^"]+)"'
+)
 # Parsers for reconstructing the resolved set from generated score_modules_*.MODULE.bazel.
 _GIT_OVERRIDE_BLOCK_RE = re.compile(r"git_override\((?P<body>.*?)\)", re.S)
 _SINGLE_VERSION_BLOCK_RE = re.compile(r"single_version_override\((?P<body>.*?)\)", re.S)
@@ -111,9 +113,7 @@ class ResolvedDependencies:
 
         module_files = sorted(artifact_dir.glob("score_modules_*.MODULE.bazel"))
         if not module_files:
-            raise FileNotFoundError(
-                f"No score_modules_*.MODULE.bazel files in resolved-deps artifact {artifact_dir}."
-            )
+            raise FileNotFoundError(f"No score_modules_*.MODULE.bazel files in resolved-deps artifact {artifact_dir}.")
 
         resolved: Dict[str, Module] = {}
         for mf in module_files:
@@ -188,6 +188,7 @@ class ResolvedDependencies:
             # Strip bazel_patches: they reference //patches/... labels in ref_int's
             # workspace which do not exist inside another module's checkout.
             from dataclasses import replace as _replace
+
             module = _replace(module, bazel_patches=None)
             directive = generate_override_directive(module)
             if directive is None:
