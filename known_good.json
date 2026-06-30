@@ -3,7 +3,7 @@
         "target_sw": {
             "score_baselibs": {
                 "repo": "https://github.com/eclipse-score/baselibs.git",
-                "hash": "cab36dd7de92c282f67e78e88032e08585803528",
+                "hash": "0130881e1c2482850a7cc85f0b789b7adf7a8e7c",
                 "metadata": {
                     "bazel_config": ["bl-x86_64-linux"],
                     "extra_test_config": [

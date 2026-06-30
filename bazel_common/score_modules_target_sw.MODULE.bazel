@@ -17,7 +17,7 @@
 bazel_dep(name = "score_baselibs")
 git_override(
     module_name = "score_baselibs",
-    commit = "cab36dd7de92c282f67e78e88032e08585803528",
+    commit = "0130881e1c2482850a7cc85f0b789b7adf7a8e7c",
     remote = "https://github.com/eclipse-score/baselibs.git",
 )
 
