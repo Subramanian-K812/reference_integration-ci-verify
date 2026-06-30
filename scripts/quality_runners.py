@@ -13,6 +13,7 @@
 import argparse
 import re
 import select
+import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -376,6 +377,29 @@ def main() -> bool:
         module_bazel = workspace.resolve() / "MODULE.bazel"
         print_centered(f"QR: Injecting resolved deps into {module_bazel}")
         resolved.overwrite(module_bazel, module_under_test=args.modules_to_test[0])
+
+        # Apply any bazel_patches declared in known_good.json for this module.
+        # git_override patches are applied by Bazel only when fetching via the
+        # registry; in module-context mode we use a local checkout, so we must
+        # apply them ourselves.
+        ref_int_root = args.known_good_path.resolve().parent
+        for mod in known.modules["target_sw"].values():
+            if mod.name != args.modules_to_test[0]:
+                continue
+            for label in mod.bazel_patches or []:
+                # Convert //patches/foo:bar.patch -> ref_int_root/patches/foo/bar.patch
+                patch_rel = label.lstrip("/").replace(":", "/")
+                patch_path = ref_int_root / patch_rel
+                print_centered(f"QR: Applying patch {patch_path.name} to {workspace}")
+                result = subprocess.run(
+                    ["patch", "--strip=1", "--forward", "--input", str(patch_path)],
+                    cwd=str(workspace.resolve()),
+                    capture_output=True,
+                    text=True,
+                )
+                if result.returncode not in (0, 1):  # 1 = already applied
+                    raise SystemExit(f"patch failed ({result.returncode}):\n{result.stderr}")
+                print(result.stdout or result.stderr)
 
     for module in known.modules["target_sw"].values():
         if args.modules_to_test and module.name not in args.modules_to_test:
