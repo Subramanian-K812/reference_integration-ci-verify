@@ -343,8 +343,8 @@ def parse_arguments() -> argparse.Namespace:
         default=None,
         help=(
             "Module-context mode: directory of the Stage-1 'stage1-resolved-deps' artifact "
-            "(MODULE.bazel.lock + score_modules_*.MODULE.bazel) used as the resolved set to "
-            "inject. Defaults to --known-good-path when omitted."
+            "(resolved_versions.json manifest) used as the resolved set to inject. "
+            "Defaults to --known-good-path when omitted."
         ),
     )
     return parser.parse_args()

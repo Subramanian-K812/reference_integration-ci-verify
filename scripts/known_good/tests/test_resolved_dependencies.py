@@ -119,10 +119,21 @@ class TestOverwrite:
         assert 'single_version_override(\n    module_name = "score_tooling"' in block
         assert 'version = "1.2.0"' in block
 
-    def test_carries_patches(self, resolved: ResolvedDependencies, module_bazel: Path):
+    def test_strips_patches(self, resolved: ResolvedDependencies, module_bazel: Path):
+        # bazel_patches reference //patches/... labels that exist only in ref_int's
+        # workspace, so they are stripped from the injected overrides.
         patched = resolved.overwrite(module_bazel, module_under_test="score_persistency", write=False)
-        assert "patches/baselibs/001-fix.patch" in patched
-        assert "patch_strip = 1" in patched
+        assert "patches/baselibs/001-fix.patch" not in patched
+        assert "patch_strip" not in patched
+
+    def test_injects_resolved_dep_not_declared(self, resolved: ResolvedDependencies, tmp_path: Path):
+        # Full-set injection: the complete resolved set is injected, not just the deps the
+        # module declares, so transitive / third-party deps are pinned even when undeclared.
+        mod = tmp_path / "MODULE.bazel"
+        mod.write_text('module(name = "score_persistency", version = "0.0.0")\nbazel_dep(name = "rules_cc", version = "0.2.17")\n')
+        block = resolved.overwrite(mod, module_under_test="score_persistency", write=False).split(INJECTION_BEGIN)[1]
+        assert 'module_name = "score_baselibs"' in block  # not declared by the module, still pinned
+        assert 'module_name = "score_logging"' in block
 
     def test_skips_root_module(self, resolved: ResolvedDependencies, module_bazel: Path):
         patched = resolved.overwrite(module_bazel, module_under_test="score_persistency", write=False)
@@ -173,8 +184,83 @@ class TestMetadataBazelConfig:
         assert m.bazel_config == ["per-x86_64-linux", "ferrocene-coverage"]
 
 
+class TestFromModGraph:
+    @staticmethod
+    def _graph() -> dict:
+        # Mirrors 'bazel mod graph --output=json': overridden modules report version 0.0.0.
+        return {
+            "key": "<root>", "name": "ref_int", "version": "",
+            "dependencies": [
+                {"name": "trlc", "version": "0.0.0"},           # git_override (carried from file)
+                {"name": "rules_boost", "version": "0.0.0"},    # archive_override (not representable)
+                {"name": "score_baselibs", "version": "0.0.0"}, # git_override (carried from file)
+                {"name": "protobuf", "version": "29.1", "dependencies": [
+                    {"name": "abseil-cpp", "version": "20250512.1"},
+                ]},
+            ],
+        }
+
+    def test_merges_overrides_and_registry_versions(self, tmp_path: Path):
+        graph = tmp_path / "graph.json"
+        graph.write_text(json.dumps(self._graph()))
+        root = tmp_path / "MODULE.bazel"
+        root.write_text(
+            'git_override(\n    module_name = "trlc",\n    commit = "abc1234",\n'
+            '    remote = "https://github.com/x/trlc.git",\n)\n'
+            'archive_override(\n    module_name = "rules_boost",\n    urls = ["https://e/x.tar"],\n)\n'
+        )
+        scoremods = tmp_path / "score_modules_target_sw.MODULE.bazel"
+        scoremods.write_text(
+            'git_override(\n    module_name = "score_baselibs",\n    commit = "def5678",\n'
+            '    remote = "https://github.com/eclipse-score/baselibs.git",\n)\n'
+        )
+
+        rd = ResolvedDependencies.from_mod_graph(graph, [root, scoremods])
+        # Overridden modules carried as their real git_override (graph's 0.0.0 ignored).
+        assert rd.get("trlc").hash == "abc1234"
+        assert rd.get("score_baselibs").hash == "def5678"
+        # Registry modules carried from the resolved graph version.
+        assert rd.get("protobuf").version == "29.1"
+        assert rd.get("abseil-cpp").version == "20250512.1"
+        # archive_override target at 0.0.0 is not representable -> not carried.
+        assert rd.get("rules_boost") is None
+
+    def test_ignores_commented_out_overrides(self, tmp_path: Path):
+        graph = tmp_path / "graph.json"
+        graph.write_text(json.dumps({"key": "<root>", "name": "r", "version": "", "dependencies": []}))
+        root = tmp_path / "MODULE.bazel"
+        root.write_text(
+            "# git_override(\n#     module_name = \"rules_rpm\",\n"
+            "#     commit = \"a78e559cf81754c199c926229dc6b4443e1ff149\",\n"
+            "#     remote = \"https://github.com/eclipse-score/inc_os_autosd.git\",\n# )\n"
+        )
+        rd = ResolvedDependencies.from_mod_graph(graph, [root])
+        assert rd.get("rules_rpm") is None  # commented-out override must not be carried
+
+
+class TestManifestRoundtrip:
+    def test_to_file_is_lean_and_roundtrips(self, tmp_path: Path, resolved: ResolvedDependencies):
+        manifest = tmp_path / "resolved_versions.json"
+        resolved.to_file(manifest)
+        data = json.loads(manifest.read_text())["modules"]
+        assert "metadata" not in data["score_baselibs"]   # lean: no test-config noise
+        assert data["score_tooling"] == {"version": "1.2.0"}
+        loaded = ResolvedDependencies.from_file(manifest)
+        assert loaded.get("score_baselibs").hash == resolved.get("score_baselibs").hash
+        assert loaded.get("score_tooling").version == "1.2.0"
+
+
 class TestFromResolvedArtifact:
-    def test_requires_lockfile(self, tmp_path: Path):
+    def test_prefers_manifest(self, tmp_path: Path, resolved: ResolvedDependencies):
+        art = tmp_path / "art"
+        art.mkdir()
+        resolved.to_file(art / "resolved_versions.json")
+        # With the manifest present, no lock / score_modules files are required.
+        parsed = ResolvedDependencies.from_resolved_artifact(art)
+        assert parsed.get("score_baselibs").hash == resolved.get("score_baselibs").hash
+        assert parsed.get("score_tooling").version == "1.2.0"
+
+    def test_requires_manifest_or_lockfile(self, tmp_path: Path):
         (tmp_path / "score_modules_target_sw.MODULE.bazel").write_text("bazel_dep(name='x')\n")
         with pytest.raises(FileNotFoundError):
             ResolvedDependencies.from_resolved_artifact(tmp_path)

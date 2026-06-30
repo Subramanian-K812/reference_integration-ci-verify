@@ -101,12 +101,18 @@ jobs:
       - name: Execute Feature Integration Tests
         run: |
           bazel test --lockfile_mode=error --config=linux-x86_64 //feature_integration_tests/test_cases:fit
-      - name: Publish resolved dependency set
+      - name: Export resolved dependency manifest
         if: always()
         run: |
           mkdir -p artifacts/stage1-resolved-deps
-          cp MODULE.bazel.lock artifacts/stage1-resolved-deps/
-          cp bazel_common/score_modules_*.MODULE.bazel artifacts/stage1-resolved-deps/
+          # Resolve the full graph (registry versions) against the committed lock, then merge
+          # with ref_int's own override directives (git_override for score_*/trlc/..., plus
+          # any single_version_override) into the single Stage 1 -> Stage 2 handoff manifest.
+          bazel mod graph --output=json --lockfile_mode=error > resolved_graph.json
+          python scripts/known_good/resolved_dependencies.py \
+            --mod-graph resolved_graph.json \
+            --export artifacts/stage1-resolved-deps/resolved_versions.json
+          cp MODULE.bazel.lock artifacts/stage1-resolved-deps/   # evidence of full resolution
       - name: Upload resolved dependency set artifact
         if: always()
         uses: actions/upload-artifact@v4.4.0
