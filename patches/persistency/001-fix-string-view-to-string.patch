@@ -1,0 +1,13 @@
+diff --git a/src/cpp/src/internal/kvs_helper.cpp b/src/cpp/src/internal/kvs_helper.cpp
+index 9a6e1b8..134824b 100644
+--- a/src/cpp/src/internal/kvs_helper.cpp
++++ b/src/cpp/src/internal/kvs_helper.cpp
+@@ -240,7 +240,7 @@ score::Result<KvsValue> any_to_kvsvalue(const score::json::Any& any)
+                                 result = score::MakeUnexpected(ErrorCode::InvalidValueType);
+                                 break;
+                             }
+-                            map.emplace(key.GetAsStringView().to_string(),
++                            map.emplace(std::string(key.GetAsStringView()),
+                                         std::make_shared<KvsValue>(std::move(conv.value())));
+                         }
+                         if (!error)

@@ -45,6 +45,10 @@ bazel_dep(name = "score_persistency")
 git_override(
     module_name = "score_persistency",
     commit = "4d1fa1ae3c55d27d0f1e863b8cdf59a148651c5d",
+    patch_strip = 1,
+    patches = [
+        "//patches/persistency:001-fix-string-view-to-string.patch",
+    ],
     remote = "https://github.com/eclipse-score/persistency.git",
 )
 
