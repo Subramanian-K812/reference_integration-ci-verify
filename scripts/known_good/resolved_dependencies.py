@@ -184,9 +184,13 @@ class ResolvedDependencies:
             resolved[name] = Module(name=name, hash="", repo="", version=version)
 
         if unrepresentable:
-            logging.warning("Overrides not carried into manifest (need manual handling): %s", ", ".join(unrepresentable))
+            logging.warning(
+                "Overrides not carried into manifest (need manual handling): %s", ", ".join(unrepresentable)
+            )
         if skipped:
-            logging.warning("Graph modules at version 0.0.0 with no carried override, skipped: %s", ", ".join(sorted(skipped)))
+            logging.warning(
+                "Graph modules at version 0.0.0 with no carried override, skipped: %s", ", ".join(sorted(skipped))
+            )
         return cls(resolved)
 
     def to_file(self, path: Path) -> None:
@@ -265,24 +269,28 @@ class ResolvedDependencies:
         module_bazel = Path(module_bazel)
         original = self._strip_injection(module_bazel.read_text())
 
+        declared = set(_BAZEL_DEP_RE.findall(original))
         already_overridden = set(_OVERRIDE_RE.findall(original))
 
         from dataclasses import replace as _replace
 
         directives: List[str] = []
-        # Inject the COMPLETE resolved set, not just the deps this module declares: MVS is
-        # graph-global, so transitive / third-party deps (e.g. trlc) must also be forced to
-        # ref_int's resolved version, or a module's own (smaller) subgraph could resolve a
-        # different one. Overrides for modules not in this module's graph are harmless —
-        # Bazel ignores unused overrides.
-        for name in sorted(self._resolved):
+        # Inject overrides only for deps the module actually declares (intersected with the
+        # resolved set). Bazel fails with "root module specifies overrides on nonexistent
+        # module(s)" if an override targets a module that is not in this module's dependency
+        # graph, so the full resolved set cannot be injected wholesale — a declared bazel_dep
+        # is by definition in the graph, which makes its override safe.
+        for name in sorted(declared):
             if name == module_under_test:
                 continue  # the module under test is the root; never override it
             if name in already_overridden:
                 continue  # respect an override the module already declares
+            module = self._resolved.get(name)
+            if module is None:
+                continue  # dep ref_int does not pin; resolves normally
             # Strip bazel_patches: they reference //patches/... labels in ref_int's
             # workspace which do not exist inside another module's checkout.
-            module = _replace(self._resolved[name], bazel_patches=None)
+            module = _replace(module, bazel_patches=None)
             directive = generate_override_directive(module)
             if directive is None:
                 continue

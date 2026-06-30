@@ -126,14 +126,17 @@ class TestOverwrite:
         assert "patches/baselibs/001-fix.patch" not in patched
         assert "patch_strip" not in patched
 
-    def test_injects_resolved_dep_not_declared(self, resolved: ResolvedDependencies, tmp_path: Path):
-        # Full-set injection: the complete resolved set is injected, not just the deps the
-        # module declares, so transitive / third-party deps are pinned even when undeclared.
+    def test_skips_resolved_dep_not_declared(self, resolved: ResolvedDependencies, tmp_path: Path):
+        # Only declared deps are injected. Overriding a module that is NOT in the module's
+        # dependency graph makes Bazel fail ("overrides on nonexistent module(s)"), so a
+        # resolved dep the module does not declare must NOT be injected.
         mod = tmp_path / "MODULE.bazel"
-        mod.write_text('module(name = "score_persistency", version = "0.0.0")\nbazel_dep(name = "rules_cc", version = "0.2.17")\n')
+        mod.write_text(
+            'module(name = "score_persistency", version = "0.0.0")\nbazel_dep(name = "score_baselibs", version = "0.1")\n'
+        )
         block = resolved.overwrite(mod, module_under_test="score_persistency", write=False).split(INJECTION_BEGIN)[1]
-        assert 'module_name = "score_baselibs"' in block  # not declared by the module, still pinned
-        assert 'module_name = "score_logging"' in block
+        assert 'module_name = "score_baselibs"' in block  # declared -> injected
+        assert 'module_name = "score_logging"' not in block  # not declared -> not injected
 
     def test_skips_root_module(self, resolved: ResolvedDependencies, module_bazel: Path):
         patched = resolved.overwrite(module_bazel, module_under_test="score_persistency", write=False)
@@ -189,14 +192,20 @@ class TestFromModGraph:
     def _graph() -> dict:
         # Mirrors 'bazel mod graph --output=json': overridden modules report version 0.0.0.
         return {
-            "key": "<root>", "name": "ref_int", "version": "",
+            "key": "<root>",
+            "name": "ref_int",
+            "version": "",
             "dependencies": [
-                {"name": "trlc", "version": "0.0.0"},           # git_override (carried from file)
-                {"name": "rules_boost", "version": "0.0.0"},    # archive_override (not representable)
-                {"name": "score_baselibs", "version": "0.0.0"}, # git_override (carried from file)
-                {"name": "protobuf", "version": "29.1", "dependencies": [
-                    {"name": "abseil-cpp", "version": "20250512.1"},
-                ]},
+                {"name": "trlc", "version": "0.0.0"},  # git_override (carried from file)
+                {"name": "rules_boost", "version": "0.0.0"},  # archive_override (not representable)
+                {"name": "score_baselibs", "version": "0.0.0"},  # git_override (carried from file)
+                {
+                    "name": "protobuf",
+                    "version": "29.1",
+                    "dependencies": [
+                        {"name": "abseil-cpp", "version": "20250512.1"},
+                    ],
+                },
             ],
         }
 
@@ -230,9 +239,9 @@ class TestFromModGraph:
         graph.write_text(json.dumps({"key": "<root>", "name": "r", "version": "", "dependencies": []}))
         root = tmp_path / "MODULE.bazel"
         root.write_text(
-            "# git_override(\n#     module_name = \"rules_rpm\",\n"
-            "#     commit = \"a78e559cf81754c199c926229dc6b4443e1ff149\",\n"
-            "#     remote = \"https://github.com/eclipse-score/inc_os_autosd.git\",\n# )\n"
+            '# git_override(\n#     module_name = "rules_rpm",\n'
+            '#     commit = "a78e559cf81754c199c926229dc6b4443e1ff149",\n'
+            '#     remote = "https://github.com/eclipse-score/inc_os_autosd.git",\n# )\n'
         )
         rd = ResolvedDependencies.from_mod_graph(graph, [root])
         assert rd.get("rules_rpm") is None  # commented-out override must not be carried
@@ -243,7 +252,7 @@ class TestManifestRoundtrip:
         manifest = tmp_path / "resolved_versions.json"
         resolved.to_file(manifest)
         data = json.loads(manifest.read_text())["modules"]
-        assert "metadata" not in data["score_baselibs"]   # lean: no test-config noise
+        assert "metadata" not in data["score_baselibs"]  # lean: no test-config noise
         assert data["score_tooling"] == {"version": "1.2.0"}
         loaded = ResolvedDependencies.from_file(manifest)
         assert loaded.get("score_baselibs").hash == resolved.get("score_baselibs").hash

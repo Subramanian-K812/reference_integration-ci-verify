@@ -10,7 +10,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 # *******************************************************************************
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@score_lifecycle_health//:defs.bzl", "launch_manager_config")
 load("//bazel_common:bundlers.bzl", "score_pkg_bundle")
 
@@ -22,7 +21,7 @@ launch_manager_config(
 score_pkg_bundle(
     name = "simple_lifecycle",
     bins = [
-        "@score_lifecycle_health//src/launch_manager_daemon:launch_manager",
+        "@score_lifecycle_health//score/launch_manager:launch_manager",
         "@score_lifecycle_health//examples/cpp_supervised_app",
         "@score_lifecycle_health//examples/rust_supervised_app",
         "@score_lifecycle_health//examples/control_application:control_daemon",
