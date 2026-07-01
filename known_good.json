@@ -44,7 +44,7 @@
                     "//patches/communication:003-module-deps-visibility.patch"
                 ],
                 "metadata": {
-                    "bazel_config": [],
+                    "bazel_config": ["linux_x86_64_score_gcc_12_2_0_posix"],
                     "code_root_path": "//score/mw/com/impl/...",
                     "exclude_test_targets": [
                         "//score/mw/com/impl:unit_test_runtime_single_exec",
