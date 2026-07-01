@@ -26,5 +26,9 @@
   {
     "version": "v0.7",
     "url": "https://qorix-group.github.io/reference_integration/v0.7/"
+  },
+  {
+    "version": "pr-19",
+    "url": "https://qorix-group.github.io/reference_integration/pr-19/"
   }
 ]
