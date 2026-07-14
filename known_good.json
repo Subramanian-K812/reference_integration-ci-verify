@@ -101,7 +101,6 @@
                 "bazel_patches": [
                     "//patches/logging:002-needs-json-deps-not-dev-dependency.patch",
                     "//patches/logging:003-docs-as-code-not-dev-dependency.patch"
-
                 ],
                 "metadata": {
                     "code_root_path": "//score/mw/log/...",

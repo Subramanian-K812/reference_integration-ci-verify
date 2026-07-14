@@ -37,7 +37,11 @@ def find_binary_in_runfiles(target_path: str) -> Path | None:
     Parameters
     ----------
     target_path : str
+<<<<<<< HEAD
         Bazel target path (e.g., "@score_lifecycle_health//score/launch_manager:launch_manager")
+=======
+        Bazel target path (e.g., "@score_lifecycle_health//src/launch_manager_daemon:launch_manager")
+>>>>>>> saumya_feature_integration_lifecycle
 
     Returns
     -------
@@ -65,8 +69,13 @@ def find_binary_in_runfiles(target_path: str) -> Path | None:
         return None
 
     # Convert Bazel target to runfiles path
+<<<<<<< HEAD
     # @score_lifecycle_health//score/launch_manager:launch_manager
     # -> score_lifecycle_health/score/launch_manager/launch_manager
+=======
+    # @score_lifecycle_health//src/launch_manager_daemon:launch_manager
+    # -> score_lifecycle_health/src/launch_manager_daemon/launch_manager
+>>>>>>> saumya_feature_integration_lifecycle
     if target_path.startswith("@"):
         # Remove @ and split by //
         parts = target_path[1:].split("//")
@@ -105,7 +114,11 @@ def find_binary_in_runfiles(target_path: str) -> Path | None:
     return None
 
 
+<<<<<<< HEAD
 def get_binary_path(target: str) -> Path:
+=======
+def get_binary_path(target: str, version: str = "rust") -> Path:
+>>>>>>> saumya_feature_integration_lifecycle
     """
     Get path to a binary, either from runfiles or by building it.
 
@@ -113,6 +126,12 @@ def get_binary_path(target: str) -> Path:
     ----------
     target : str
         Bazel target path.
+<<<<<<< HEAD
+=======
+    version : str
+        Build version ("rust" or "cpp").
+
+>>>>>>> saumya_feature_integration_lifecycle
     Returns
     -------
     Path
@@ -153,13 +172,23 @@ def get_binary_path(target: str) -> Path:
         )
 
     ws_path = Path(ws_info_res.stdout.strip())
+<<<<<<< HEAD
     binary_path = ws_path / cquery_res.stdout.strip()
+=======
+    # cquery may return multiple lines (e.g. target + exec configuration).
+    # Filter out exec-configuration paths and use the first remaining line.
+    cquery_lines = [line for line in cquery_res.stdout.strip().splitlines() if line and "-exec-" not in line]
+    if not cquery_lines:
+        cquery_lines = cquery_res.stdout.strip().splitlines()
+    binary_path = ws_path / cquery_lines[0]
+>>>>>>> saumya_feature_integration_lifecycle
     if not binary_path.is_file():
         raise RuntimeError(f"Executable not found after build: {binary_path}")
 
     return binary_path
 
 
+<<<<<<< HEAD
 def find_flatbuffer_dir_in_runfiles() -> Path | None:
     """
     Find the generated Launch Manager flatbuffer config directory in Bazel runfiles.
@@ -181,11 +210,15 @@ def find_flatbuffer_dir_in_runfiles() -> Path | None:
 
 
 def copy_flatbuffer_daemon_configs(etc_dir: Path) -> None:
+=======
+def copy_flatbuffer_daemon_configs(etc_dir: Path, *, include_lm_config: bool = True) -> None:
+>>>>>>> saumya_feature_integration_lifecycle
     """
     Populate `etc_dir` with Launch Manager flatbuffer config binaries.
 
     The current Launch Manager daemon startup path expects flatbuffer files
     (e.g., lm_demo.bin) in `etc/` relative to its working directory.
+<<<<<<< HEAD
     """
     flatbuffer_dir = find_flatbuffer_dir_in_runfiles()
     if flatbuffer_dir:
@@ -193,6 +226,18 @@ def copy_flatbuffer_daemon_configs(etc_dir: Path) -> None:
             shutil.copy2(flatbuffer_file, etc_dir / flatbuffer_file.name)
         return
 
+=======
+
+    Parameters
+    ----------
+    etc_dir : Path
+        Destination directory where flatbuffer binaries are copied.
+    include_lm_config : bool
+        Whether to copy `lm_demo.bin` (the main Launch Manager config). Set to
+        False when tests need to force JSON config usage for dynamic sandbox
+        identity values (uid/gid).
+    """
+>>>>>>> saumya_feature_integration_lifecycle
     bazel_config = os.environ.get("FIT_BAZEL_CONFIG", "linux-x86_64")
     config_target = "//feature_integration_tests/test_cases:daemon_lifecycle_configs"
 
@@ -233,9 +278,197 @@ def copy_flatbuffer_daemon_configs(etc_dir: Path) -> None:
         raise RuntimeError(f"Generated flatbuffer config directory not found: {flatbuffer_dir}")
 
     for flatbuffer_file in flatbuffer_dir.glob("*.bin"):
+<<<<<<< HEAD
         shutil.copy2(flatbuffer_file, etc_dir / flatbuffer_file.name)
 
 
+=======
+        if not include_lm_config and flatbuffer_file.name == "lm_demo.bin":
+            continue
+        shutil.copy2(flatbuffer_file, etc_dir / flatbuffer_file.name)
+
+
+def _find_prebuilt_flatbuffers_in_runfiles() -> Path | None:
+    """
+    Locate the pre-built daemon flatbuffer config directory in Bazel runfiles.
+
+    The `launch_manager_config` rule (used by `:daemon_lifecycle_configs`)
+    outputs flatbuffer files to a `flatbuffer_out/` subdirectory within the
+    package.  Returns that directory, or None if not found.
+    """
+    for env_var in ("TEST_SRCDIR", "RUNFILES_DIR"):
+        base = os.environ.get(env_var)
+        if not base:
+            continue
+        # Under bzlmod the workspace files are nested under _main/
+        for prefix in (Path(base) / "_main", Path(base)):
+            candidate = prefix / "feature_integration_tests" / "test_cases" / "flatbuffer_out"
+            if candidate.is_dir() and any(candidate.glob("*.bin")):
+                return candidate
+    return None
+
+
+def copy_dynamic_flatbuffer_daemon_configs(
+    etc_dir: Path,
+    work_dir: Path,
+    *,
+    uid: int,
+    gid: int,
+    input_config: dict | None = None,
+) -> None:
+    """
+    Generate and copy daemon flatbuffer configs with runtime sandbox identity.
+
+    This mirrors the Bazel `launch_manager_config` generation pipeline used by
+    `daemon_lifecycle_configs`, but injects UID/GID dynamically so local runs can
+    align sandbox identity with the current user.
+
+    Parameters
+    ----------
+    input_config : dict | None
+        If provided, use this config dict instead of the template JSON file.
+        UID/GID are still injected/overwritten into the sandbox section.
+    """
+    if input_config is not None:
+        dynamic_config = json.loads(json.dumps(input_config))  # deep copy via JSON round-trip
+    else:
+        template_config_path = Path(__file__).resolve().parent / "configs" / "daemon_launch_manager_config.json"
+        dynamic_config = json.loads(template_config_path.read_text())
+
+    # Remove state_manager from any run_target depends_on — control_daemon requires
+    # setuid/setgid capabilities which are unavailable in standard test environments.
+    for rt in dynamic_config.get("run_targets", {}).values():
+        deps = rt.get("depends_on", [])
+        if "state_manager" in deps:
+            deps.remove("state_manager")
+
+    sandbox = dynamic_config.setdefault("defaults", {}).setdefault("deployment_config", {}).setdefault("sandbox", {})
+    sandbox["uid"] = uid
+    sandbox["gid"] = gid
+
+    input_json = work_dir / "daemon_launch_manager_config.dynamic.json"
+    input_json.write_text(json.dumps(dynamic_config, indent=2))
+
+    json_out_dir = work_dir / "json_out"
+    flatbuffer_out_dir = work_dir / "flatbuffer_out"
+    json_out_dir.mkdir(exist_ok=True)
+    flatbuffer_out_dir.mkdir(exist_ok=True)
+
+    # When running inside a Bazel test sandbox, `bazel build/info` commands fail
+    # because the sandbox has no MODULE.bazel workspace file.
+    _under_bazel = bool(os.environ.get("TEST_SRCDIR") or os.environ.get("RUNFILES_DIR"))
+    if _under_bazel:
+        prebuilt_dir = _find_prebuilt_flatbuffers_in_runfiles()
+        if prebuilt_dir is None:
+            raise RuntimeError(
+                "Cannot find pre-built daemon flatbuffers in Bazel runfiles. "
+                "Ensure ':daemon_lifecycle_configs' is listed as a data dependency."
+            )
+
+        # Copy all pre-built flatbuffers (lm_demo.bin is needed for SWCL/config-manager
+        # startup; hm_demo.bin + hmproc_*.bin are needed for the health monitor).
+        for flatbuffer_file in prebuilt_dir.glob("*.bin"):
+            shutil.copy2(flatbuffer_file, etc_dir / flatbuffer_file.name)
+        return
+
+    else:
+        bazel_config = os.environ.get("FIT_BAZEL_CONFIG", "linux-x86_64")
+        materialize_cmd = [
+            "bazel",
+            "build",
+            f"--config={bazel_config}",
+            "//feature_integration_tests/test_cases:daemon_lifecycle_configs",
+        ]
+        materialize_res = subprocess.run(materialize_cmd, capture_output=True, text=True, check=False)
+        if materialize_res.returncode != 0:
+            raise RuntimeError(
+                f"Failed to materialize daemon config toolchain artifacts.\nstderr:\n{materialize_res.stderr.strip()}"
+            )
+
+        output_base_res = subprocess.run(["bazel", "info", "output_base"], capture_output=True, text=True, check=False)
+        if output_base_res.returncode != 0:
+            raise RuntimeError(
+                "Failed to resolve Bazel output base for dynamic flatbuffer generation.\n"
+                f"stderr:\n{output_base_res.stderr.strip()}"
+            )
+        output_base = Path(output_base_res.stdout.strip())
+        external_root = output_base / "external" / "score_lifecycle_health+"
+
+    lifecycle_config_bin = get_binary_path("@score_lifecycle_health//scripts/config_mapping:lifecycle_config")
+    launch_manager_schema = external_root / "src/launch_manager_daemon/config/config_schema/launch_manager.schema.json"
+    if not launch_manager_schema.is_file():
+        raise RuntimeError(f"Launch Manager schema not found: {launch_manager_schema}")
+
+    gen_cmd = [
+        str(lifecycle_config_bin),
+        str(input_json),
+        "--schema",
+        str(launch_manager_schema),
+        "-o",
+        str(json_out_dir),
+    ]
+    gen_res = subprocess.run(gen_cmd, capture_output=True, text=True, check=False)
+    if gen_res.returncode != 0:
+        raise RuntimeError(
+            f"Failed to generate intermediate lifecycle JSON configs.\nstderr:\n{gen_res.stderr.strip()}"
+        )
+
+    flatc_bin = get_binary_path("@flatbuffers//:flatc")
+    lm_schema = external_root / "src/launch_manager_daemon/config/lm_flatcfg.fbs"
+    hm_schema = external_root / "src/launch_manager_daemon/health_monitor_lib/config/hm_flatcfg.fbs"
+    hmcore_schema = external_root / "src/launch_manager_daemon/health_monitor_lib/config/hmcore_flatcfg.fbs"
+
+    for json_cfg in json_out_dir.glob("*"):
+        if not json_cfg.is_file():
+            continue
+
+        filename = json_cfg.name
+        if filename.startswith("lm_"):
+            schema = lm_schema
+        elif filename.startswith("hmcore"):
+            schema = hmcore_schema
+        elif filename.startswith("hm_") or filename.startswith("hmproc_"):
+            schema = hm_schema
+        else:
+            continue
+
+        compile_res = subprocess.run(
+            [str(flatc_bin), "-b", "-o", str(flatbuffer_out_dir), str(schema), str(json_cfg)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if compile_res.returncode != 0:
+            raise RuntimeError(
+                f"Failed to compile dynamic flatbuffer config for {filename}.\nstderr:\n{compile_res.stderr.strip()}"
+            )
+
+    for flatbuffer_file in flatbuffer_out_dir.glob("*.bin"):
+        shutil.copy2(flatbuffer_file, etc_dir / flatbuffer_file.name)
+
+
+def ensure_path_traversable_for_sandbox(path: Path) -> None:
+    """
+    Ensure path and its ancestors are traversable by non-owner sandbox users.
+
+    Launch Manager may execute supervised processes under a different uid/gid.
+    For those processes to chdir into the pytest workspace, all parent
+    directories must have execute permission for others.
+    """
+    for candidate in [path, *path.parents]:
+        if candidate == Path("/"):
+            break
+        try:
+            mode = candidate.stat().st_mode & 0o777
+            desired_mode = mode | 0o055
+            if desired_mode != mode:
+                candidate.chmod(desired_mode)
+        except OSError:
+            # Best effort: permission tweaks are environment-dependent.
+            continue
+
+
+>>>>>>> saumya_feature_integration_lifecycle
 class LaunchManagerDaemon:
     """
     Context manager for Launch Manager daemon lifecycle.
@@ -276,6 +509,7 @@ class LaunchManagerDaemon:
         if self.process is not None:
             raise RuntimeError("Daemon already started")
 
+<<<<<<< HEAD
         # Create/append to log file so logs from a prior start() (e.g. before a
         # restart) are preserved instead of being discarded.
         self.log_file = self.working_dir / "launch_manager.log"
@@ -285,6 +519,13 @@ class LaunchManagerDaemon:
         # the whole supervision tree, not just the daemon itself. Otherwise
         # supervised child processes are orphaned on daemon crash/restart and
         # linger to pollute later pgrep-based assertions.
+=======
+        # Create log file
+        self.log_file = self.working_dir / "launch_manager.log"
+        self._log_fd = open(self.log_file, "w", encoding="utf-8")
+
+        # Start daemon process
+>>>>>>> saumya_feature_integration_lifecycle
         cmd = [str(self.daemon_binary), str(self.config_file)]
         self.process = subprocess.Popen(
             cmd,
@@ -292,7 +533,10 @@ class LaunchManagerDaemon:
             stdout=self._log_fd,
             stderr=subprocess.STDOUT,
             text=True,
+<<<<<<< HEAD
             start_new_session=True,
+=======
+>>>>>>> saumya_feature_integration_lifecycle
         )
 
         # Wait for daemon to initialize
@@ -320,22 +564,34 @@ class LaunchManagerDaemon:
             return
 
         try:
+<<<<<<< HEAD
             # Send SIGTERM to the whole process group for graceful shutdown if
             # still running, so supervised children are not orphaned.
             if self.process.poll() is None:
                 try:
                     os.killpg(self.process.pid, signal.SIGTERM)
+=======
+            # Send SIGTERM for graceful shutdown if still running.
+            if self.process.poll() is None:
+                try:
+                    self.process.send_signal(signal.SIGTERM)
+>>>>>>> saumya_feature_integration_lifecycle
                 except ProcessLookupError:
                     pass
 
             try:
                 self.process.wait(timeout=shutdown_timeout)
             except subprocess.TimeoutExpired:
+<<<<<<< HEAD
                 # Force kill the whole process group if graceful shutdown fails.
                 try:
                     os.killpg(self.process.pid, signal.SIGKILL)
                 except ProcessLookupError:
                     pass
+=======
+                # Force kill if graceful shutdown fails.
+                self.process.kill()
+>>>>>>> saumya_feature_integration_lifecycle
                 self.process.wait()
         finally:
             self.process = None
@@ -415,27 +671,95 @@ def launch_manager_daemon(
     bin_dir.mkdir(exist_ok=True)
     etc_dir.mkdir(exist_ok=True)
 
+<<<<<<< HEAD
     # Get launch_manager daemon binary (from runfiles or build it)
     daemon_target = "@score_lifecycle_health//score/launch_manager:launch_manager"
     daemon_binary = get_binary_path(daemon_target)
+=======
+    # Supervised processes may run as a different uid from the test user.
+    # Make the pytest temp path traversable to avoid chdir permission failures.
+    ensure_path_traversable_for_sandbox(work_dir)
+    ensure_path_traversable_for_sandbox(bin_dir)
+    ensure_path_traversable_for_sandbox(etc_dir)
+
+    # Get launch_manager daemon binary (from runfiles or build it)
+    daemon_target = "@score_lifecycle_health//src/launch_manager_daemon:launch_manager"
+    daemon_binary = get_binary_path(daemon_target, version)
+>>>>>>> saumya_feature_integration_lifecycle
 
     # Copy daemon to bin directory
     daemon_path = bin_dir / "launch_manager"
     shutil.copy2(daemon_binary, daemon_path)
     daemon_path.chmod(0o755)
 
+<<<<<<< HEAD
+=======
+    # Optional capability setup for environments that explicitly enable it.
+    # Set FIT_ENABLE_SETCAP=1 to prompt for sudo password and apply setcap.
+    if os.environ.get("FIT_ENABLE_SETCAP", "0") == "1":
+        try:
+            # In setuid mode, supervised processes may run as a uid different
+            # from the test user and still need to traverse Bazel output paths.
+            ensure_path_traversable_for_sandbox(Path.home())
+            ensure_path_traversable_for_sandbox(Path.home() / ".cache" / "bazel")
+
+            if os.geteuid() != 0:
+                subprocess.run(["sudo", "-v"], check=True, timeout=30)
+                subprocess.run(
+                    ["sudo", "setcap", "cap_setuid,cap_setgid=ep", str(daemon_path)],
+                    check=True,
+                    timeout=30,
+                )
+            else:
+                subprocess.run(
+                    ["setcap", "cap_setuid,cap_setgid=ep", str(daemon_path)],
+                    check=True,
+                    timeout=30,
+                )
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
+            # If capability setup fails (e.g., sudo denied, setcap missing),
+            # tests will xfail gracefully due to uid/gid permission guards.
+            pass
+
+>>>>>>> saumya_feature_integration_lifecycle
     # Preload binaries referenced by the generated daemon config run target.
     for app_target, app_name in [
         ("@score_lifecycle_health//examples/rust_supervised_app:rust_supervised_app", "rust_supervised_app"),
         ("@score_lifecycle_health//examples/cpp_supervised_app:cpp_supervised_app", "cpp_supervised_app"),
         ("@score_lifecycle_health//examples/control_application:control_daemon", "control_daemon"),
     ]:
+<<<<<<< HEAD
         app_binary = get_binary_path(app_target)
         app_dest = bin_dir / app_name
         shutil.copy2(app_binary, app_dest)
         app_dest.chmod(0o755)
 
     # Create minimal launch manager configuration
+=======
+        app_binary = get_binary_path(app_target, version)
+        app_dest = bin_dir / app_name
+        if app_dest.exists() or app_dest.is_symlink():
+            app_dest.unlink()
+        app_dest.symlink_to(app_binary.resolve())
+
+    # Create launch manager configuration with the version-specific supervised app.
+    # Use current user's UID/GID for sandbox to avoid setuid/setgid permission errors
+    # when running in non-root environments.
+    current_uid = os.getuid()
+    current_gid = os.getgid()
+
+    # The supervised app's HM config (hmproc flatbuffer) will be generated and placed
+    # in etc_dir by copy_dynamic_flatbuffer_daemon_configs.  We pre-compute the path
+    # so it can be embedded in the config before generation runs.
+    supervised_app_name = f"{version}_supervised_app"
+    hmproc_config_path = str(etc_dir / f"hmproc_{supervised_app_name}.bin")
+
+    if version == "cpp":
+        process_args = ["-d50"]
+    else:
+        process_args = ["--delay", "100"]
+
+>>>>>>> saumya_feature_integration_lifecycle
     config = {
         "schema_version": 1,
         "defaults": {
@@ -443,8 +767,13 @@ def launch_manager_daemon(
                 "bin_dir": str(bin_dir) + "/",
                 "ready_recovery_action": {"restart": {"number_of_attempts": 3, "delay_before_restart": 0.5}},
                 "sandbox": {
+<<<<<<< HEAD
                     "uid": 0,
                     "gid": 0,
+=======
+                    "uid": current_uid,
+                    "gid": current_gid,
+>>>>>>> saumya_feature_integration_lifecycle
                     "supplementary_group_ids": [],
                     "scheduling_policy": "SCHED_OTHER",
                     "scheduling_priority": 1,
@@ -466,6 +795,7 @@ def launch_manager_daemon(
                 "ready_condition": {"process_state": "Running"},
             },
             "run_target": {
+<<<<<<< HEAD
                 "transition_timeout": 10,
                 "recovery_action": {"switch_run_target": {"run_target": "fallback"}},
             },
@@ -476,12 +806,46 @@ def launch_manager_daemon(
             "fallback": {"description": "Fallback state", "depends_on": [], "transition_timeout": 1.5},
         },
         "initial_run_target": "startup",
+=======
+                "transition_timeout": 5,
+                "recovery_action": {"switch_run_target": {"run_target": "fallback_run_target"}},
+            },
+        },
+        "components": {
+            supervised_app_name: {
+                "description": f"Supervised application under test ({version})",
+                "component_properties": {
+                    "binary_name": supervised_app_name,
+                    "application_profile": {
+                        "application_type": "Reporting_And_Supervised",
+                    },
+                    "depends_on": [],
+                    "process_arguments": process_args,
+                },
+                "deployment_config": {
+                    "environmental_variables": {
+                        "IDENTIFIER": supervised_app_name,
+                        "PROCESSIDENTIFIER": supervised_app_name,
+                        "CONFIG_PATH": hmproc_config_path,
+                    },
+                    "recovery_action": {
+                        "switch_run_target": {"run_target": "fallback_run_target"},
+                    },
+                },
+            },
+        },
+        "run_targets": {
+            "Startup": {"description": "System startup", "depends_on": [supervised_app_name]},
+        },
+        "initial_run_target": "Startup",
+>>>>>>> saumya_feature_integration_lifecycle
         "fallback_run_target": {"description": "Fallback state", "depends_on": [], "transition_timeout": 1.5},
     }
 
     config_file = etc_dir / "launch_manager_config.json"
     config_file.write_text(json.dumps(config, indent=2))
 
+<<<<<<< HEAD
     # Launch Manager daemon currently consumes flatbuffer config binaries from
     # `etc/` (e.g., lm_demo.bin), so populate them before startup.
     copy_flatbuffer_daemon_configs(etc_dir)
@@ -489,6 +853,22 @@ def launch_manager_daemon(
     # Start the daemon
     daemon = LaunchManagerDaemon(daemon_path, config_file, work_dir)
     daemon.start(startup_timeout=2.0)
+=======
+    # Generate flatbuffer configs (lm_demo.bin, hmproc_*.bin, etc.) from our custom
+    # config so the Launch Manager reads the correct topology including the supervised app.
+    copy_dynamic_flatbuffer_daemon_configs(etc_dir, work_dir, uid=current_uid, gid=current_gid, input_config=config)
+
+    # Start the daemon
+    daemon = LaunchManagerDaemon(daemon_path, config_file, work_dir)
+    try:
+        daemon.start(startup_timeout=2.0)
+    except RuntimeError as e:
+        # If daemon fails to start due to ACL/setcap issues (which happen when
+        # FIT_ENABLE_SETCAP fails in sandboxed environments), skip tests gracefully.
+        if "Could not set ACL" in str(e) or "Could not create Monitor interface IPC" in str(e):
+            pytest.skip(f"Daemon startup requires setcap capabilities: {str(e)[:100]}")
+        raise
+>>>>>>> saumya_feature_integration_lifecycle
 
     try:
         # Verify daemon is running

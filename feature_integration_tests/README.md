@@ -42,10 +42,10 @@ For full lifecycle requirement mapping and detailed rationale, see `feature_inte
 Python tests are managed with Bazel and Pytest. To run all integration tests:
 
 ```sh
-bazel test --config=linux-x86_64 //feature_integration_tests/test_cases:fit
+bazel test --config=linux-x86_64 //feature_integration_tests/test_cases:fit_daemon
 ```
 
-To run specific test suites:
+To run lifecycle integration tests by language:
 
 ```sh
 bazel test --config=linux-x86_64 //feature_integration_tests/test_cases:fit_rust

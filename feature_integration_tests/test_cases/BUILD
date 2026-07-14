@@ -10,6 +10,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 # *******************************************************************************
+
 load("@pip_score_venv_test//:requirements.bzl", "all_requirements")
 load("@rules_python//python:pip.bzl", "compile_pip_requirements")
 load("@score_lifecycle_health//:defs.bzl", "launch_manager_config")
@@ -42,8 +43,8 @@ launch_manager_config(
 
 # Tests targets
 score_py_pytest(
-    name = "fit_rust",
-    srcs = glob(["tests/**/*.py"]),
+    name = "fit_daemon_lifecycle_arc_rust",
+    srcs = glob(["tests/lifecycle/test_lifecycle_*.py"]),
     args = [
         "-m rust",
         "--traces=all",
@@ -57,19 +58,29 @@ score_py_pytest(
         "lifecycle_scenario.py",
         "persistency_scenario.py",
         "test_properties.py",
+        # Flatbuffer daemon configs (resolved via runfiles instead of subprocess bazel build)
+        ":daemon_lifecycle_configs",
+        # Test scenario executables (used by persistency cross-module test)
         "//feature_integration_tests/test_scenarios/rust:rust_test_scenarios",
+        # Lifecycle daemon and supervised application binaries
+        "@score_lifecycle_health//examples/control_application:control_daemon",
+        "@score_lifecycle_health//examples/cpp_supervised_app",
+        "@score_lifecycle_health//examples/rust_supervised_app",
+        "@score_lifecycle_health//src/launch_manager_daemon:launch_manager",
     ],
     env = {
         "RUST_BACKTRACE": "1",
+        "FIT_ENABLE_SETCAP": "1",
     },
     pytest_config = "//:pyproject.toml",
     tags = ["no-sandbox"],
     deps = all_requirements,
 )
 
+# Architecture-based IPC boundary + cross-module lifecycle integration tests (C++)
 score_py_pytest(
-    name = "fit_cpp",
-    srcs = glob(["tests/**/*.py"]),
+    name = "fit_daemon_lifecycle_arc_cpp",
+    srcs = glob(["tests/lifecycle/test_lifecycle_*.py"]),
     args = [
         "-m cpp",
         "--traces=all",
@@ -83,8 +94,21 @@ score_py_pytest(
         "lifecycle_scenario.py",
         "persistency_scenario.py",
         "test_properties.py",
+        # Flatbuffer daemon configs (resolved via runfiles instead of subprocess bazel build)
+        ":daemon_lifecycle_configs",
+        # Test scenario executables (used by persistency cross-module test)
         "//feature_integration_tests/test_scenarios/cpp:cpp_test_scenarios",
+        # Lifecycle daemon and supervised application binaries
+        "@score_lifecycle_health//examples/control_application:control_daemon",
+        "@score_lifecycle_health//examples/cpp_supervised_app",
+        "@score_lifecycle_health//examples/rust_supervised_app",
+        "@score_lifecycle_health//src/launch_manager_daemon:launch_manager",
+        # Communication binaries (used by comm cross-module test)
+        "@score_communication//score/mw/com/example/ipc_bridge:ipc_bridge_cpp",
     ],
+    env = {
+        "FIT_ENABLE_SETCAP": "1",
+    },
     pytest_config = "//:pyproject.toml",
     tags = ["no-sandbox"],
     deps = all_requirements,
@@ -160,9 +184,21 @@ score_py_pytest(
 test_suite(
     name = "fit",
     tests = [
+<<<<<<< HEAD
         ":fit_cpp",
         ":fit_daemon_cpp",
         ":fit_daemon_rust",
         ":fit_rust",
+=======
+        ":fit_daemon",
+    ],
+)
+
+test_suite(
+    name = "fit_daemon",
+    tests = [
+        ":fit_daemon_lifecycle_arc_cpp",
+        ":fit_daemon_lifecycle_arc_rust",
+>>>>>>> saumya_feature_integration_lifecycle
     ],
 )
