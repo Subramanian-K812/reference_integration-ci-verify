@@ -77,6 +77,12 @@ def pytest_addoption(parser):
 
 
 # Hooks
+def pytest_configure(config: pytest.Config) -> None:
+    """Register custom markers used by FIT parametrization."""
+    config.addinivalue_line("markers", "cpp: mark scenario execution for C++ target")
+    config.addinivalue_line("markers", "rust: mark scenario execution for Rust target")
+
+
 def pytest_collection_modifyitems(items: list[pytest.Function]):
     for item in items:
         # Automatically mark tests parametrized with 'version' as 'cpp' or 'rust'.

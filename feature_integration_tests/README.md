@@ -116,7 +116,7 @@ bazel test --config=itf-qnx-x86_64 //feature_integration_tests/itf
 Test scenarios can be listed and run directly for debugging:
 
 ```sh
-bazel run //feature_integration_tests/test_scenarios/rust:rust_test_scenarios -- --list-scenarios
+bazel run --config=linux-x86_64 //feature_integration_tests/test_scenarios/rust:rust_test_scenarios -- --list-scenarios
 bazel run --config=linux-x86_64 //feature_integration_tests/test_scenarios/cpp:cpp_test_scenarios -- --list-scenarios
 ```
 
