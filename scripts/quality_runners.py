@@ -17,7 +17,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from pprint import pprint
-from subprocess import PIPE, Popen
+from subprocess import PIPE, Popen, run
 
 from known_good.models.known_good import load_known_good
 from known_good.models.module import Module
@@ -32,6 +32,31 @@ class ProcessResult:
 
 def print_centered(message: str, width: int = 120, fillchar: str = "-") -> None:
     print(message.center(width, fillchar))
+
+
+def configure_aslr_for_sanitizers() -> None:
+    """Lower ASLR entropy so ThreadSanitizer/ASan tests can run.
+
+    Modern kernels (e.g. Ubuntu 24.04 CI runners) default ``vm.mmap_rnd_bits``
+    to 32. That is incompatible with the sanitizer shadow-memory layout and
+    makes ThreadSanitizer abort before any test runs with
+    ``FATAL: ThreadSanitizer: unexpected memory mapping``. Lowering the value
+    to 28 is the documented workaround (see google/sanitizers#1614).
+
+    Best-effort: silently ignored when sudo/sysctl is unavailable or the value
+    is already low enough, so local runs without privileges are unaffected.
+    """
+    print_centered("QR: Configuring ASLR entropy for sanitizer tests")
+    result = run(
+        ["sudo", "sysctl", "-w", "vm.mmap_rnd_bits=28"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode == 0:
+        print(result.stdout.strip())
+    else:
+        print(f"QR: Could not lower vm.mmap_rnd_bits (continuing anyway): {result.stderr.strip()}")
 
 
 def run_unit_test_with_coverage(module: Module) -> dict[str, str | int]:
@@ -282,8 +307,10 @@ def parse_arguments() -> argparse.Namespace:
 
 def main() -> bool:
     args = parse_arguments()
+    configure_aslr_for_sanitizers()
     args.coverage_output_dir.mkdir(parents=True, exist_ok=True)
     path_to_docs = Path(__file__).parent.parent / "docs/verification_report"
+    path_to_docs.mkdir(parents=True, exist_ok=True)
 
     known = load_known_good(args.known_good_path.resolve())
 
@@ -338,10 +365,7 @@ def main() -> bool:
     pprint(coverage_summary, width=120)
 
     # Check all exit codes and return non-zero if any test or coverage extraction failed
-    return any(
-        result_ut["exit_code"] != 0 or result_cov["exit_code"] != 0
-        for result_ut, result_cov in zip(unit_tests_summary.values(), coverage_summary.values())
-    )
+    return any(r["exit_code"] != 0 for r in {**unit_tests_summary, **coverage_summary}.values())
 
 
 if __name__ == "__main__":
