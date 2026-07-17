@@ -30,7 +30,6 @@ To run these tests:
 For detailed documentation, see ../../LIFECYCLE_TESTS_SUMMARY.md
 """
 
-import shutil
 import subprocess
 import re
 import time
@@ -38,7 +37,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from daemon_helpers import get_binary_path, launch_manager_daemon
+from daemon_helpers import launch_manager_daemon
 from test_properties import add_test_properties
 
 pytestmark = [
@@ -86,24 +85,15 @@ class TestProcessLaunchingWithDaemon:
         """
         daemon_info = launch_manager_daemon
         bin_dir = daemon_info["bin_dir"]
+        app_name = "rust_supervised_app" if version == "rust" else "cpp_supervised_app"
 
-        # Get the supervised app binary (from runfiles or build it)
-        # Use the example supervised apps from lifecycle module
-        if version == "rust":
-            app_target = "@score_lifecycle_health//examples/rust_supervised_app:rust_supervised_app"
-            app_name = "rust_supervised_app"
-        else:
-            app_target = "@score_lifecycle_health//examples/cpp_supervised_app:cpp_supervised_app"
-            app_name = "cpp_supervised_app"
-
-        app_binary = get_binary_path(app_target)
-
-        # Copy to daemon bin directory
+        # The launch_manager_daemon fixture already deployed and started this
+        # component (as the version-matching supervised app in its config), so
+        # re-copying the binary here would race with the running process and
+        # fail with "Text file busy".
         dest_path = bin_dir / app_name
-        shutil.copy2(app_binary, dest_path)
-        dest_path.chmod(0o755)
 
-        print(f"Deployed test application to: {dest_path}")
+        print(f"Test application already deployed by daemon fixture at: {dest_path}")
         return dest_path
 
     def test_supervised_app_launches(

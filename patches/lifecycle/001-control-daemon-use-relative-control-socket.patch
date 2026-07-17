@@ -1,0 +1,26 @@
+diff --git a/examples/control_application/control.hpp b/examples/control_application/control.hpp
+index 03d0658..7f33d3a 100644
+--- a/examples/control_application/control.hpp
++++ b/examples/control_application/control.hpp
+@@ -20,7 +20,7 @@ struct RunTargetInfo {
+     char runTargetName[1024]{};
+ };
+
+-static constexpr char const* control_socket_path = "/sm_control";
++static constexpr char const* control_socket_path = "sm_control";
+ static constexpr std::size_t control_socket_capacity = 32;
+
+ #endif
+diff --git a/examples/control_application/control_daemon.cpp b/examples/control_application/control_daemon.cpp
+index 0000000..0000001 100644
+--- a/examples/control_application/control_daemon.cpp
++++ b/examples/control_application/control_daemon.cpp
+@@ -33,7 +33,7 @@ int main(int argc, char** argv) {
+     score::mw::lifecycle::report_running();
+
+     ipc_dropin::Socket<static_cast<size_t>(sizeof(RunTargetInfo)), control_socket_capacity> sm_control_socket{};
+-    if (sm_control_socket.create(control_socket_path, 600) != ipc_dropin::ReturnCode::kOk) {
++    if (sm_control_socket.create(control_socket_path, 0600) != ipc_dropin::ReturnCode::kOk) {
+         std::cerr << "Could not create control socket" << std::endl;
+         return EXIT_FAILURE;
+     }

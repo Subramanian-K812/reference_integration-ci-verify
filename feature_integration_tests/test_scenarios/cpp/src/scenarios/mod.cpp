@@ -38,25 +38,6 @@ Scenario::Ptr make_lifecycle_time_sync_scenario();
 ScenarioGroup::Ptr supported_datatypes_group();
 ScenarioGroup::Ptr default_values_group();
 
-ScenarioGroup::Ptr lifecycle_scenario_group() {
-    return std::make_shared<ScenarioGroupImpl>(
-        "lifecycle",
-        std::vector<Scenario::Ptr>{
-            make_lifecycle_application_if_scenario(),
-            make_lifecycle_baselibs_integration_scenario(),
-            make_lifecycle_comm_dependency_activation_scenario(),
-            make_lifecycle_config_validation_gate_scenario(),
-            make_lifecycle_ipc_alive_if_scenario(),
-            make_lifecycle_ipc_controlif_scenario(),
-            make_lifecycle_ipc_deadline_monitor_if_scenario(),
-            make_lifecycle_logging_correlation_scenario(),
-            make_lifecycle_multi_instance_isolation_scenario(),
-            make_lifecycle_orchestrator_sync_scenario(),
-            make_lifecycle_security_isolation_scenario(),
-            make_lifecycle_time_sync_scenario(),
-        },
-        std::vector<ScenarioGroup::Ptr>{});
-}
 
 ScenarioGroup::Ptr persistency_scenario_group() {
     return std::make_shared<ScenarioGroupImpl>(
@@ -76,6 +57,18 @@ ScenarioGroup::Ptr lifecycle_scenario_group() {
     return std::make_shared<ScenarioGroupImpl>(
         "lifecycle",
         std::vector<Scenario::Ptr>{
+            make_lifecycle_application_if_scenario(),
+            make_lifecycle_baselibs_integration_scenario(),
+            make_lifecycle_comm_dependency_activation_scenario(),
+            make_lifecycle_config_validation_gate_scenario(),
+            make_lifecycle_ipc_alive_if_scenario(),
+            make_lifecycle_ipc_controlif_scenario(),
+            make_lifecycle_ipc_deadline_monitor_if_scenario(),
+            make_lifecycle_logging_correlation_scenario(),
+            make_lifecycle_multi_instance_isolation_scenario(),
+            make_lifecycle_orchestrator_sync_scenario(),
+            make_lifecycle_security_isolation_scenario(),
+            make_lifecycle_time_sync_scenario(),
             make_process_launching_support_scenario(),
             make_dependency_ordering_scenario(),
             make_parallel_launching_scenario(),
@@ -101,9 +94,5 @@ ScenarioGroup::Ptr root_scenario_group() {
     return std::make_shared<ScenarioGroupImpl>(
         "root",
         std::vector<Scenario::Ptr>{},
-<<<<<<< HEAD
         std::vector<ScenarioGroup::Ptr>{persistency_scenario_group(), lifecycle_scenario_group()});
-=======
-        std::vector<ScenarioGroup::Ptr>{lifecycle_scenario_group(), persistency_scenario_group()});
->>>>>>> origin/saumya_lifecycle_feature_cross_module_integration
 }

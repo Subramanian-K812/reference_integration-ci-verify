@@ -1,0 +1,12 @@
+diff --git a/MODULE.bazel b/MODULE.bazel
+index 7a3fdff..4a211de 100644
+--- a/MODULE.bazel
++++ b/MODULE.bazel
+@@ -73,7 +73,7 @@ bazel_dep(name = "score_docs_as_code", version = "4.5.0")
+ 
+ bazel_dep(name = "score_process", version = "1.6.0", dev_dependency = True)
+-bazel_dep(name = "score_tooling", version = "1.2.0", dev_dependency = True)
++bazel_dep(name = "score_tooling", version = "1.2.0")
+ bazel_dep(name = "aspect_rules_lint", version = "2.3.0", dev_dependency = True)
+ 
+ bazel_dep(name = "googletest", version = "1.17.0.bcr.2")

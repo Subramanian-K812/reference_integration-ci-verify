@@ -66,7 +66,15 @@ score_py_pytest(
         "@score_lifecycle_health//examples/control_application:control_daemon",
         "@score_lifecycle_health//examples/cpp_supervised_app",
         "@score_lifecycle_health//examples/rust_supervised_app",
-        "@score_lifecycle_health//src/launch_manager_daemon:launch_manager",
+        "@score_lifecycle_health//score/launch_manager",
+        # Tools used to regenerate the Launch Manager flatbuffer config in-process
+        # (with an absolute bin_dir) instead of shelling out to `bazel build`.
+        "@score_lifecycle_health//scripts/config_mapping:lifecycle_config",
+        "@score_lifecycle_health//score/launch_manager/src/daemon/src/configuration/config_schema:launch_manager.schema.json",
+        "@score_lifecycle_health//score/launch_manager/src/daemon/src/configuration/config_schema:lm_flatcfg.fbs",
+        "@score_lifecycle_health//score/launch_manager/src/daemon/src/alive_monitor/config:hm_flatcfg.fbs",
+        "@score_lifecycle_health//score/launch_manager/src/daemon/src/alive_monitor/config:hmcore_flatcfg.fbs",
+        "@flatbuffers//:flatc",
     ],
     env = {
         "RUST_BACKTRACE": "1",
@@ -102,9 +110,15 @@ score_py_pytest(
         "@score_lifecycle_health//examples/control_application:control_daemon",
         "@score_lifecycle_health//examples/cpp_supervised_app",
         "@score_lifecycle_health//examples/rust_supervised_app",
-        "@score_lifecycle_health//src/launch_manager_daemon:launch_manager",
-        # Communication binaries (used by comm cross-module test)
-        "@score_communication//score/mw/com/example/ipc_bridge:ipc_bridge_cpp",
+        "@score_lifecycle_health//score/launch_manager",
+        # Tools used to regenerate the Launch Manager flatbuffer config in-process
+        # (with an absolute bin_dir) instead of shelling out to `bazel build`.
+        "@score_lifecycle_health//scripts/config_mapping:lifecycle_config",
+        "@score_lifecycle_health//score/launch_manager/src/daemon/src/configuration/config_schema:launch_manager.schema.json",
+        "@score_lifecycle_health//score/launch_manager/src/daemon/src/configuration/config_schema:lm_flatcfg.fbs",
+        "@score_lifecycle_health//score/launch_manager/src/daemon/src/alive_monitor/config:hm_flatcfg.fbs",
+        "@score_lifecycle_health//score/launch_manager/src/daemon/src/alive_monitor/config:hmcore_flatcfg.fbs",
+        "@flatbuffers//:flatc",
     ],
     env = {
         "FIT_ENABLE_SETCAP": "1",
@@ -137,6 +151,14 @@ score_py_pytest(
         "@score_lifecycle_health//examples/cpp_supervised_app",
         "@score_lifecycle_health//examples/rust_supervised_app",
         "@score_lifecycle_health//score/launch_manager",
+        # Tools used to regenerate the Launch Manager flatbuffer config in-process
+        # (with an absolute bin_dir) instead of shelling out to `bazel build`.
+        "@score_lifecycle_health//scripts/config_mapping:lifecycle_config",
+        "@score_lifecycle_health//score/launch_manager/src/daemon/src/configuration/config_schema:launch_manager.schema.json",
+        "@score_lifecycle_health//score/launch_manager/src/daemon/src/configuration/config_schema:lm_flatcfg.fbs",
+        "@score_lifecycle_health//score/launch_manager/src/daemon/src/alive_monitor/config:hm_flatcfg.fbs",
+        "@score_lifecycle_health//score/launch_manager/src/daemon/src/alive_monitor/config:hmcore_flatcfg.fbs",
+        "@flatbuffers//:flatc",
     ],
     env = {
         "RUST_BACKTRACE": "1",
@@ -172,6 +194,14 @@ score_py_pytest(
         "@score_lifecycle_health//examples/cpp_supervised_app",
         "@score_lifecycle_health//examples/rust_supervised_app",
         "@score_lifecycle_health//score/launch_manager",
+        # Tools used to regenerate the Launch Manager flatbuffer config in-process
+        # (with an absolute bin_dir) instead of shelling out to `bazel build`.
+        "@score_lifecycle_health//scripts/config_mapping:lifecycle_config",
+        "@score_lifecycle_health//score/launch_manager/src/daemon/src/configuration/config_schema:launch_manager.schema.json",
+        "@score_lifecycle_health//score/launch_manager/src/daemon/src/configuration/config_schema:lm_flatcfg.fbs",
+        "@score_lifecycle_health//score/launch_manager/src/daemon/src/alive_monitor/config:hm_flatcfg.fbs",
+        "@score_lifecycle_health//score/launch_manager/src/daemon/src/alive_monitor/config:hmcore_flatcfg.fbs",
+        "@flatbuffers//:flatc",
     ],
     pytest_config = "//:pyproject.toml",
     tags = [
@@ -184,21 +214,9 @@ score_py_pytest(
 test_suite(
     name = "fit",
     tests = [
-<<<<<<< HEAD
-        ":fit_cpp",
         ":fit_daemon_cpp",
-        ":fit_daemon_rust",
-        ":fit_rust",
-=======
-        ":fit_daemon",
-    ],
-)
-
-test_suite(
-    name = "fit_daemon",
-    tests = [
         ":fit_daemon_lifecycle_arc_cpp",
         ":fit_daemon_lifecycle_arc_rust",
->>>>>>> saumya_feature_integration_lifecycle
+        ":fit_daemon_rust",
     ],
 )

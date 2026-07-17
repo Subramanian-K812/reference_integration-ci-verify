@@ -51,6 +51,12 @@
                     }
                 },
                 "depends_on": []
+            },
+            "deployment_config": {
+                "sandbox": {
+                    "uid": 1001,
+                    "gid": 1001
+                }
             }
         },
         "cpp_supervised_app": {
@@ -64,6 +70,10 @@
                 ]
             },
             "deployment_config": {
+                "sandbox": {
+                    "uid": 1001,
+                    "gid": 1001
+                },
                 "environmental_variables": {
                     "PROCESSIDENTIFIER": "cpp_supervised_app",
                     "CONFIG_PATH": "etc/hmproc_cpp_supervised_app.bin",
@@ -82,6 +92,10 @@
                 ]
             },
             "deployment_config": {
+                "sandbox": {
+                    "uid": 1001,
+                    "gid": 1001
+                },
                 "environmental_variables": {
                     "PROCESSIDENTIFIER": "rust_supervised_app",
                     "CONFIG_PATH": "etc/hmproc_rust_supervised_app.bin",
