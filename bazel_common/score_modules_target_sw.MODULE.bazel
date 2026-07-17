@@ -31,6 +31,7 @@ git_override(
     patch_strip = 1,
     patches = [
         "//patches/communication:001-expose-comm-examples.patch",
+        "//patches/communication:002-expose-com-api-gen.patch",
         "//patches/communication:003-module-deps-visibility.patch",
     ],
     remote = "https://github.com/eclipse-score/communication.git",
