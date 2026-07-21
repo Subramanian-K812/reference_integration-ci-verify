@@ -40,6 +40,7 @@ pytestmark = [
         "feat_req__lifecycle__waitfor_support",
         "feat_req__lifecycle__cond_process_start",
         "feat_req__lifecycle__dependency_check",
+        "feat_req__lifecycle__config_actions_cond",
         "feat_req__lifecycle__process_ordering",
     ],
     test_type="integration",
@@ -172,4 +173,20 @@ class TestConditionalLaunchingWithDaemon:
         depends_on = rust_component.get("depends_on", [])
         assert "cpp_supervised_app" in depends_on, (
             "Expected rust_supervised_app to depend on cpp_supervised_app in lifecycle daemon config"
+        )
+
+    def test_conditional_action_is_declared_in_lifecycle_config(
+        self,
+        launch_manager_daemon: dict[str, Any],
+        version: str,
+    ) -> None:
+        """Verify lifecycle config declares an action for unmet startup conditions."""
+        config_path = Path(__file__).resolve().parents[3] / "configs" / "lifecycle_daemon_config.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+
+        startup_action = config["run_targets"]["Startup"].get("recovery_action", {})
+        switch_cfg = startup_action.get("switch_run_target", {})
+        assert switch_cfg.get("run_target") == "fallback_run_target", (
+            "Expected Startup run target to define switch_run_target=fallback_run_target "
+            "for condition evaluation failures"
         )

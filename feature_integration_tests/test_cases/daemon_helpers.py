@@ -33,7 +33,7 @@ _TARGET_ENV_MAP = {
     "@score_lifecycle_health//score/launch_manager:launch_manager": "FIT_LAUNCH_MANAGER_PATH",
     "@score_lifecycle_health//examples/rust_supervised_app:rust_supervised_app": "FIT_RUST_SUPERVISED_APP_PATH",
     "@score_lifecycle_health//examples/cpp_supervised_app:cpp_supervised_app": "FIT_CPP_SUPERVISED_APP_PATH",
-    "//feature_integration_tests/configs:lifecycle_daemon_config": "FIT_LIFECYCLE_DAEMON_CONFIG_PATH",
+    "//feature_integration_tests/configs:lifecycle_daemon_config_data": "FIT_LIFECYCLE_DAEMON_CONFIG_PATH",
 }
 
 
@@ -176,13 +176,15 @@ def launch_manager_daemon(tmp_path_factory: pytest.TempPathFactory) -> dict[str,
     if runtime_root.exists():
         shutil.rmtree(runtime_root)
     bin_dir = runtime_root / "bin"
+    workdir = runtime_root / "workdir"
     bin_dir.mkdir(parents=True, exist_ok=True)
+    workdir.mkdir(parents=True, exist_ok=True)
 
     launch_manager = _resolve_target_path("@score_lifecycle_health//score/launch_manager:launch_manager")
     rust_supervised = _resolve_target_path("@score_lifecycle_health//examples/rust_supervised_app:rust_supervised_app")
     cpp_supervised = _resolve_target_path("@score_lifecycle_health//examples/cpp_supervised_app:cpp_supervised_app")
 
-    config_artifact = _resolve_target_path("//feature_integration_tests/configs:lifecycle_daemon_config")
+    config_artifact = _resolve_target_path("//feature_integration_tests/configs:lifecycle_daemon_config_data")
 
     lm_dst = work_dir / "launch_manager"
     shutil.copy2(launch_manager, lm_dst)
@@ -257,6 +259,7 @@ def launch_manager_daemon(tmp_path_factory: pytest.TempPathFactory) -> dict[str,
             "daemon": daemon,
             "work_dir": work_dir,
             "bin_dir": bin_dir,
+            "runtime_workdir": workdir,
             "apps": apps,
         }
     finally:

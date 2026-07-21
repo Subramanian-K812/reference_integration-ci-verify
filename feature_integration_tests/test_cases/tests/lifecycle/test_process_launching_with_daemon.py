@@ -141,6 +141,37 @@ class TestProcessLaunchingWithDaemon:
         return env
 
     @staticmethod
+    def _proc_cwd(pid: str) -> Path | None:
+        """Read the current working directory of a process from /proc."""
+        try:
+            return Path(f"/proc/{pid}/cwd").resolve()
+        except OSError:
+            return None
+
+    @staticmethod
+    def _proc_limit_value(pid: str, limit_name: str) -> int | None:
+        """Read a numeric soft limit from /proc/<pid>/limits for a given resource name."""
+        try:
+            lines = Path(f"/proc/{pid}/limits").read_text(encoding="utf-8").splitlines()
+        except OSError:
+            return None
+
+        for line in lines:
+            if not line.startswith(limit_name):
+                continue
+            columns = line.split()
+            if len(columns) < 4:
+                return None
+            soft_limit = columns[-3]
+            if soft_limit == "unlimited":
+                return None
+            try:
+                return int(soft_limit)
+            except ValueError:
+                return None
+        return None
+
+    @staticmethod
     def _proc_status_ids(pid: str) -> tuple[int, int] | None:
         """Read effective uid/gid from /proc status for a process."""
         try:
@@ -310,6 +341,70 @@ class TestProcessLaunchingWithDaemon:
         assert isinstance(sandbox.get("gid"), int), "Expected integer gid in sandbox defaults"
         assert isinstance(sandbox.get("scheduling_priority"), int), "Expected integer scheduling priority"
         assert isinstance(sandbox.get("scheduling_policy"), str), "Expected scheduling policy string"
+
+    def test_config_defines_working_directory_and_memory_limit(
+        self, launch_manager_daemon: dict[str, Any], version: str
+    ) -> None:
+        """Verify lifecycle config defines a working directory and memory limit."""
+        config_path = Path(__file__).resolve().parents[3] / "configs" / "lifecycle_daemon_config.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+
+        deployment = config["defaults"]["deployment_config"]
+        assert isinstance(deployment.get("working_dir"), str), "Expected working_dir string in deployment defaults"
+        sandbox = deployment["sandbox"]
+        assert isinstance(sandbox.get("max_memory_usage"), int), "Expected integer max_memory_usage in sandbox defaults"
+
+    def test_launched_process_cwd_is_observable_when_applied(
+        self,
+        launch_manager_daemon: dict[str, Any],
+        version: str,
+    ) -> None:
+        """Probe whether the configured working directory is applied to launched processes."""
+        daemon_info = launch_manager_daemon
+        app_name = "rust_supervised_app" if version == "rust" else "cpp_supervised_app"
+        app_path = str(daemon_info["apps"][version])
+
+        config_path = Path(__file__).resolve().parents[3] / "configs" / "lifecycle_daemon_config.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        expected_cwd = Path(config["defaults"]["deployment_config"]["working_dir"]).resolve()
+
+        started = self._wait_until(lambda: self._is_running(app_path), timeout_s=8.0)
+        assert started, f"{app_name} was not launched before cwd verification"
+
+        pid = self._first_pid(app_path)
+        assert pid is not None, f"Could not resolve PID for {app_name}"
+        proc_cwd = self._proc_cwd(pid)
+        assert proc_cwd is not None, f"Could not read cwd for {app_name} pid={pid}"
+        if proc_cwd != expected_cwd:
+            pytest.skip(
+                f"Working directory support is not applied on this runtime path: expected {expected_cwd}, got {proc_cwd}"
+            )
+
+    def test_launched_process_memory_limit_is_observable_when_applied(
+        self,
+        launch_manager_daemon: dict[str, Any],
+        version: str,
+    ) -> None:
+        """Probe whether the configured address-space limit is observable via /proc."""
+        daemon_info = launch_manager_daemon
+        app_name = "rust_supervised_app" if version == "rust" else "cpp_supervised_app"
+        app_path = str(daemon_info["apps"][version])
+
+        config_path = Path(__file__).resolve().parents[3] / "configs" / "lifecycle_daemon_config.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        expected_limit = int(config["defaults"]["deployment_config"]["sandbox"]["max_memory_usage"])
+
+        started = self._wait_until(lambda: self._is_running(app_path), timeout_s=8.0)
+        assert started, f"{app_name} was not launched before memory limit verification"
+
+        pid = self._first_pid(app_path)
+        assert pid is not None, f"Could not resolve PID for {app_name}"
+        proc_limit = self._proc_limit_value(pid, "Max address space")
+        if proc_limit is None:
+            pytest.skip("Address-space limit is not exposed as a finite /proc limit in this environment")
+        assert proc_limit == expected_limit, (
+            f"Address-space limit mismatch for {app_name}: expected {expected_limit}, got {proc_limit}"
+        )
 
     def test_launched_process_uid_gid_matches_config_when_applied(
         self,

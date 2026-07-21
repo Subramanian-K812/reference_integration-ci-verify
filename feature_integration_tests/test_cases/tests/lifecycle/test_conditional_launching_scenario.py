@@ -34,6 +34,7 @@ pytestmark = [pytest.mark.parametrize("version", ["rust", "cpp"], scope="class")
         "feat_req__lifecycle__polling_interval",
         "feat_req__lifecycle__path_condition_check",
         "feat_req__lifecycle__env_variable_cond_check",
+        "feat_req__lifecycle__condition_check_method",
         "feat_req__lifecycle__dependency_check",
     ],
     test_type="requirements-based",
@@ -75,31 +76,56 @@ class TestConditionalLaunchingScenario(LifecycleScenario):
 
         raise AssertionError(f"Could not verify scenario message: {expected}")
 
-    def test_wait_condition_messages_are_logged(
+    def test_path_condition_is_logged(
         self,
         results: ScenarioResult,
         logs_info_level: Any,
         version: str,
     ) -> None:
-        """Verify the scenario logs each supported condition prefix."""
+        """Verify the scenario logs the configured path-based condition."""
         assert results.return_code == ResultCode.SUCCESS
-        expected_messages = [
-            "Testing conditional launching",
-            "Checking path condition: /tmp/lifecycle_launch_ready.flag",
-            "Checking env condition: LM_CONDITION_READY",
-            "Checking process condition: cpp_supervised_app",
-            "All dependencies satisfied",
-        ]
-        for expected in expected_messages:
-            self._assert_logged_message(results, logs_info_level, expected)
+        self._assert_logged_message(results, logs_info_level, "Testing conditional launching")
+        self._assert_logged_message(
+            results, logs_info_level, "Checking path condition: /tmp/lifecycle_launch_ready.flag"
+        )
 
-    def test_timeout_and_polling_interval_are_logged(
+    def test_env_condition_is_logged(
         self,
         results: ScenarioResult,
         logs_info_level: Any,
         version: str,
     ) -> None:
-        """Verify the scenario logs the configured wait timing values."""
+        """Verify the scenario logs the configured environment-based condition."""
+        assert results.return_code == ResultCode.SUCCESS
+        self._assert_logged_message(results, logs_info_level, "Checking env condition: LM_CONDITION_READY")
+
+    def test_process_condition_is_logged(
+        self,
+        results: ScenarioResult,
+        logs_info_level: Any,
+        version: str,
+    ) -> None:
+        """Verify the scenario logs the configured process-status dependency check."""
+        assert results.return_code == ResultCode.SUCCESS
+        self._assert_logged_message(results, logs_info_level, "Checking process condition: cpp_supervised_app")
+        self._assert_logged_message(results, logs_info_level, "All dependencies satisfied")
+
+    def test_polling_interval_is_logged(
+        self,
+        results: ScenarioResult,
+        logs_info_level: Any,
+        version: str,
+    ) -> None:
+        """Verify the scenario logs the configured polling interval."""
         assert results.return_code == ResultCode.SUCCESS
         self._assert_logged_message(results, logs_info_level, "Polling interval: 123ms")
+
+    def test_condition_timeout_is_logged(
+        self,
+        results: ScenarioResult,
+        logs_info_level: Any,
+        version: str,
+    ) -> None:
+        """Verify the scenario logs the configured condition timeout."""
+        assert results.return_code == ResultCode.SUCCESS
         self._assert_logged_message(results, logs_info_level, "Condition timeout: 456ms")

@@ -41,3 +41,9 @@ launch_manager_config(
     flatbuffer_out_dir = "etc",
     visibility = ["//visibility:public"],
 )
+
+filegroup(
+    name = "lifecycle_daemon_config_data",
+    srcs = [":lifecycle_daemon_config"],
+    visibility = ["//visibility:public"],
+)

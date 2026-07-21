@@ -3,6 +3,7 @@
     "defaults": {
         "deployment_config": {
             "bin_dir": "/tmp/lifecycle_fit/bin",
+            "working_dir": "/tmp/lifecycle_fit/workdir",
             "ready_timeout": 2.0,
             "shutdown_timeout": 2.0,
             "ready_recovery_action": {
@@ -18,6 +19,7 @@
             "sandbox": {
                 "uid": 1001,
                 "gid": 1001,
+                "max_memory_usage": 1073741824,
                 "scheduling_policy": "SCHED_OTHER",
                 "scheduling_priority": 0
             }

@@ -64,7 +64,7 @@ git_override(
 bazel_dep(name = "score_lifecycle_health")
 git_override(
     module_name = "score_lifecycle_health",
-    commit = "654ac348e1cb9327e5c8c4d84fd0028ad3ef2714",
+    commit = "71928936ee5801e0b088e362721ebfea1b68b4f8",
     remote = "https://github.com/eclipse-score/lifecycle.git",
 )
 
