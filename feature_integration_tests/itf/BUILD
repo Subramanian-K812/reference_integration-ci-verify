@@ -30,12 +30,24 @@ config_setting(
     ],
 )
 
+# Grouped per suite so future additions don't mix into one undifferentiated
+# list; all_tests below is the union of these groups plus shared utilities.
+filegroup(
+    name = "communication_tests",
+    srcs = [
+        "comm_helpers.py",
+        "test_communication.py",
+    ],
+)
+
 filegroup(
     name = "all_tests",
     srcs = [
+        "test_properties.py",
         "test_remote_logging.py",
         "test_showcases.py",
         "test_ssh.py",
+        ":communication_tests",
     ],
 )
 
@@ -44,6 +56,13 @@ py_itf_test(
     srcs = [
         ":all_tests",
     ],
+    # @add_test_properties(...) (feature_integration_tests/itf/test_properties.py)
+    # writes PartiallyVerifies/FullyVerifies properties into the JUnit XML
+    # report, matching the convention already used by
+    # feature_integration_tests/test_cases (persistency FIT). The
+    # score_itf//score/itf/plugins:attribute_plugin entry below (not a raw
+    # score_tooling dep) activates the plugin and injects the required
+    # "-p attribute_plugin" pytest arg automatically.
     args = select(
         {
             ":config_linux_x86_64": [
@@ -82,7 +101,9 @@ py_itf_test(
             ],
         },
         no_match_error = "Unsupported platform",
-    ),
+    ) + [
+        "@score_itf//score/itf/plugins:attribute_plugin",
+    ],
     tags = [
         "manual",
     ],
