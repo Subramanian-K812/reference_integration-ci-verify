@@ -14,12 +14,12 @@ load("//bazel_common:bundlers.bzl", "score_pkg_bundle")
 
 score_pkg_bundle(
     name = "comm",
-    bins = ["@score_communication//score/mw/com/example/ipc_bridge:ipc_bridge_cpp"],
+    bins = ["@score_communication//score/mw/com/example/com-api-example:com-api-example"],
     config_data = [
         "//showcases/standalone:com.score.json",
     ],
     custom_layout = {
-        "@score_communication//score/mw/com/example/ipc_bridge:etc/mw_com_config.json": "etc/mw_com_config.json",
+        "@score_communication//score/mw/com/example/com-api-example:etc/mw_com_config.json": "etc/mw_com_config.json",
     },
     package_dir = "standalone",
 )
@@ -33,6 +33,20 @@ score_pkg_bundle(
     ],
     config_data = [
         "//showcases/standalone:kyron.score.json",
+    ],
+    package_dir = "standalone",
+)
+
+score_pkg_bundle(
+    name = "time",
+    bins = [
+        "@score_time//examples/time/vehicle_time",
+        "@score_time//examples/time/system_time",
+        "@score_time//examples/time/steady_time",
+        "@score_time//examples/time/high_res_steady_time",
+    ],
+    config_data = [
+        "//showcases/standalone:time.score.json",
     ],
     package_dir = "standalone",
 )
