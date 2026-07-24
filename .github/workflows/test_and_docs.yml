@@ -296,6 +296,17 @@ jobs:
             artifacts/coverage/
           retention-days: 14
           if-no-files-found: warn
+      # The module's MODULE.bazel.lock, regenerated (--lockfile_mode=update) after the
+      # resolved-deps injection: the verifiable record of exactly which dependency
+      # versions this module was validated against in Stage 2.
+      - name: Upload regenerated module lockfile
+        if: always()
+        uses: actions/upload-artifact@v4.4.0
+        with:
+          name: stage2-resolved-lock-${{ matrix.module.name }}
+          path: _module/MODULE.bazel.lock
+          retention-days: 14
+          if-no-files-found: warn
   # ---------------------------------------------------------------------------
   # Aggregate — consolidate Stage 1 + Stage 2 results into one quality report.
   # Also handles the release-tag test-report ZIP (formerly in test_and_docs).

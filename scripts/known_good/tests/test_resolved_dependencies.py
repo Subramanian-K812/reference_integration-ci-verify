@@ -17,6 +17,7 @@ overwrites a temporary module MODULE.bazel — no cloned repos or Bazel required
 """
 
 import json
+import logging
 import sys
 from pathlib import Path
 
@@ -31,6 +32,7 @@ from known_good.resolved_dependencies import (  # noqa: E402
     INJECTION_BEGIN,
     INJECTION_END,
     ResolvedDependencies,
+    generate_override_directive,
 )
 
 KNOWN_GOOD = {
@@ -132,7 +134,8 @@ class TestOverwrite:
         # resolved dep the module does not declare must NOT be injected.
         mod = tmp_path / "MODULE.bazel"
         mod.write_text(
-            'module(name = "score_persistency", version = "0.0.0")\nbazel_dep(name = "score_baselibs", version = "0.1")\n'
+            'module(name = "score_persistency", version = "0.0.0")\n'
+            'bazel_dep(name = "score_baselibs", version = "0.1")\n'
         )
         block = resolved.overwrite(mod, module_under_test="score_persistency", write=False).split(INJECTION_BEGIN)[1]
         assert 'module_name = "score_baselibs"' in block  # declared -> injected
@@ -155,6 +158,17 @@ class TestOverwrite:
         assert first == second
         assert second.count(INJECTION_BEGIN) == 1
 
+    def test_warns_on_declared_dep_not_in_resolved_set(
+        self, resolved: ResolvedDependencies, module_bazel: Path, caplog: pytest.LogCaptureFixture
+    ):
+        # "score_unpinned" is declared in MODULE_BAZEL but has no known_good.json entry.
+        # This is expected to be effectively impossible once the resolved set is sourced
+        # from the full 'bazel mod graph' (a superset of any module's own graph), so it
+        # must be surfaced as a warning rather than silently ignored.
+        with caplog.at_level(logging.WARNING):
+            resolved.overwrite(module_bazel, module_under_test="score_persistency", write=False)
+        assert "score_unpinned" in caplog.text
+
     def test_overwrites_dep_with_existing_override(self, resolved: ResolvedDependencies, tmp_path: Path):
         # ref_int always decides the version — a pre-existing override in the module is replaced.
         mod = tmp_path / "MODULE.bazel"
@@ -167,6 +181,10 @@ class TestOverwrite:
         # ref_int's resolved commit must appear in the injection block, overwriting "deadbeef"
         assert 'module_name = "score_logging"' in block
         assert "deadbeef" not in block
+        # the module's OWN override must be removed from the whole file — otherwise Bazel
+        # aborts with "multiple overrides for dep score_logging found".
+        assert "deadbeef" not in patched
+        assert patched.count('module_name = "score_logging"') == 1
 
 
 class TestFromModGraph:
@@ -257,13 +275,15 @@ class TestFromResolvedArtifact:
             ResolvedDependencies.from_resolved_artifact(tmp_path)
 
     def test_roundtrip_known_good_to_artifact(self, tmp_path: Path, resolved: ResolvedDependencies):
-        # Build an artifact dir mirroring stage1-resolved-deps, then parse it back.
-        from known_good.update_module_from_known_good import generate_git_override_blocks
-
+        # Build an artifact dir mirroring stage1-resolved-deps (legacy format), then parse it back.
         art = tmp_path / "art"
         art.mkdir()
         (art / "MODULE.bazel.lock").write_text("{}")
-        blocks = generate_git_override_blocks(list(resolved._resolved.values()), {})
+        blocks = []
+        for m in resolved.modules.values():
+            directive = generate_override_directive(m)
+            if directive:
+                blocks.append(f'bazel_dep(name = "{m.name}")\n' + directive)
         (art / "score_modules_target_sw.MODULE.bazel").write_text("\n".join(blocks))
 
         parsed = ResolvedDependencies.from_resolved_artifact(art)
