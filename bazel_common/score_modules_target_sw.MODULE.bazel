@@ -72,7 +72,7 @@ git_override(
 bazel_dep(name = "score_logging")
 git_override(
     module_name = "score_logging",
-    commit = "6282f3a2ec6b1eeeab87c8e9a4435c586bcf9973",
+    commit = "f6e8323086134e01ead5736f813aa8c669a627ee",
     patch_strip = 1,
     patches = [
         "//patches/logging:002-needs-json-deps-not-dev-dependency.patch",

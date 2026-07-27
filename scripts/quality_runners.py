@@ -21,7 +21,7 @@ from subprocess import PIPE, Popen
 
 from known_good.models.known_good import load_known_good
 from known_good.models.module import Module
-from known_good.resolved_dependencies import ResolvedDependencies
+from known_good.resolved_dependencies import ResolvedDependencies, fetch_module_bazel_deps
 
 
 @dataclass
@@ -376,7 +376,11 @@ def main() -> bool:
             resolved = ResolvedDependencies.from_known_good(args.known_good_path.resolve())
         module_bazel = workspace.resolve() / "MODULE.bazel"
         print_centered(f"QR: Injecting resolved deps into {module_bazel}")
-        resolved.overwrite(module_bazel, module_under_test=args.modules_to_test[0])
+        resolved.overwrite(
+            module_bazel,
+            module_under_test=args.modules_to_test[0],
+            fetch_transitive_deps=fetch_module_bazel_deps,
+        )
 
         # The module's committed MODULE.bazel.lock is stale the moment we inject overrides.
         # Delete it so the run (with --lockfile_mode=update) regenerates a lock reflecting
@@ -440,10 +444,13 @@ def main() -> bool:
     print_centered("QR: COVERAGE ANALYSIS SUMMARY", fillchar="=")
     pprint(coverage_summary, width=120)
 
-    # Check all exit codes and return non-zero if any test or coverage extraction failed
-    return any(
-        result_ut["exit_code"] != 0 or result_cov["exit_code"] != 0
-        for result_ut, result_cov in zip(unit_tests_summary.values(), coverage_summary.values())
+    # Check all exit codes and return non-zero if any test or coverage extraction failed.
+    # Checked independently per dict (not zip()'d together): a module can be missing from
+    # coverage_summary entirely (e.g. DISABLED_RUST_COVERAGE with no "cpp" lang), and zip()
+    # truncates to the shorter of the two — silently dropping that module's unit-test result
+    # from the check instead of just skipping its (nonexistent) coverage result.
+    return any(result["exit_code"] != 0 for result in unit_tests_summary.values()) or any(
+        result["exit_code"] != 0 for result in coverage_summary.values()
     )
 
 

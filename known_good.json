@@ -116,7 +116,7 @@
             },
             "score_logging": {
                 "repo": "https://github.com/eclipse-score/logging.git",
-                "hash": "6282f3a2ec6b1eeeab87c8e9a4435c586bcf9973",
+                "hash": "f6e8323086134e01ead5736f813aa8c669a627ee",
                 "bazel_patches": [
                     "//patches/logging:002-needs-json-deps-not-dev-dependency.patch",
                     "//patches/logging:003-docs-as-code-not-dev-dependency.patch"
@@ -147,7 +147,7 @@
                         "cpp"
                     ],
                     "bazel_config": [
-                        "x86_64-linux"
+                        "time-x86_64-linux"
                     ]
                 }
             }
