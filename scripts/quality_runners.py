@@ -136,6 +136,19 @@ def cpp_coverage(module: Module, artifact_dir: Path, workspace: Path | None = No
         print_centered(f"QR: No coverage dat file at {dat_file} — skipping genhtml for {module.name}")
         return ProcessResult(stdout="", stderr="", exit_code=0)
 
+    # Some modules override Bazel's --coverage_report_generator in their own coverage.bazelrc
+    # (e.g. score_communication's llvm_cov merger packages a pre-built HTML report as a zip at
+    # this same path, for its own CI). genhtml only understands lcov's plain-text .info format,
+    # so detect a zip (PK magic) and skip rather than crash trying to parse binary as text.
+    with open(dat_file, "rb") as f:
+        is_zip = f.read(2) == b"PK"
+    if is_zip:
+        print_centered(
+            f"QR: {dat_file} is not lcov format (zip) — {module.name}'s own coverage.bazelrc overrides "
+            "--coverage_report_generator; skipping genhtml"
+        )
+        return ProcessResult(stdout="", stderr="", exit_code=0)
+
     genhtml_call = [
         "genhtml",
         f"{bazel_coverage_output_directory}/_coverage/_coverage_report.dat",
