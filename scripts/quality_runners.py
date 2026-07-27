@@ -272,7 +272,7 @@ def run_command(command: list[str], **kwargs) -> ProcessResult:
     print_centered("QR: Running command:")
     print(f"{' '.join(command)}")
 
-    with Popen(command, stdout=PIPE, stderr=PIPE, text=True, bufsize=1, **kwargs) as p:
+    with Popen(command, stdout=PIPE, stderr=PIPE, text=True, bufsize=1, errors="replace", **kwargs) as p:
         # Use select to read from both streams without blocking
         streams = {
             p.stdout: (stdout_data, sys.stdout),
