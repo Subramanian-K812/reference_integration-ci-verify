@@ -26,7 +26,6 @@ struct TestInput {
     // Data matches the Python test configuration; hardcoded since it's symmetric.
     const std::vector<std::string> keys{"key1", "key2", "key3"};
     const std::vector<double> override_values{111.0, 222.0, 333.0};
-    const std::vector<double> default_values{100.0, 200.0, 300.0};
 };
 
 class ResetToDefault : public Scenario {
@@ -58,10 +57,12 @@ void ResetToDefault::run(const std::string& input) const {
         }
     }
 
-    // Reset key2 (index 1) using remove_key — reverts to default in memory
+    // Reset key2 (index 1) using reset_key — reverts the key to its
+    // configured default without deleting it from the defaults registry.
+    // After reset_key, get_value must return the default value.
     const auto& key_to_reset = test_input.keys[1];
-    if (!kvs->remove_key(key_to_reset)) {
-        throw std::runtime_error("Failed to remove key");
+    if (!kvs->reset_key(key_to_reset)) {
+        throw std::runtime_error("Failed to reset key to default");
     }
 
     // Log the default value reported by KVS after reset so Python can assert it.
@@ -80,7 +81,7 @@ void ResetToDefault::run(const std::string& input) const {
     }
 
     if (!KvsInstance::normalize_snapshot_file_to_rust_envelope(params)) {
-        std::cerr << "Warning: Failed to normalize snapshot file" << std::endl;
+        throw std::runtime_error("Failed to normalize snapshot file");
     }
 }
 

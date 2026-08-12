@@ -10,18 +10,29 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 // *******************************************************************************
+mod atomic_store;
 mod default_values;
 mod default_values_ignored;
 mod multi_instance_isolation;
 mod multiple_kvs_per_app;
+mod recovery_from_reset;
+mod reset_resistant;
 mod reset_to_default;
 mod supported_datatypes;
 mod utf8_defaults;
 
+use atomic_store::AtomicStore;
+use atomic_store::AtomicStoreFlushFailure;
+use atomic_store::AtomicStoreMultiInstance;
+use atomic_store::AtomicStoreNoPartialWrite;
 use default_values::default_values_group;
 use default_values_ignored::DefaultValuesIgnored;
 use multi_instance_isolation::MultiInstanceIsolation;
 use multiple_kvs_per_app::MultipleKvsPerApp;
+use recovery_from_reset::RecoveryFromReset;
+use recovery_from_reset::RecoveryFromResetMultiInstance;
+use reset_resistant::ResetResistant;
+use reset_resistant::ResetResistantMultiInstance;
 use reset_to_default::ResetToDefault;
 use supported_datatypes::supported_datatypes_group;
 use test_scenarios_rust::scenario::{ScenarioGroup, ScenarioGroupImpl};
@@ -38,6 +49,14 @@ pub fn persistency_group() -> Box<dyn ScenarioGroup> {
             Box::new(Utf8Defaults),
             Box::new(Utf8DefaultValueGet),
             Box::new(MultiInstanceIsolation),
+            Box::new(ResetResistant),
+            Box::new(ResetResistantMultiInstance),
+            Box::new(RecoveryFromReset),
+            Box::new(RecoveryFromResetMultiInstance),
+            Box::new(AtomicStore),
+            Box::new(AtomicStoreNoPartialWrite),
+            Box::new(AtomicStoreMultiInstance),
+            Box::new(AtomicStoreFlushFailure),
         ],
         vec![supported_datatypes_group(), default_values_group()],
     ))

@@ -41,8 +41,18 @@ public:
     bool reset();
     bool reset_key(const std::string& key);
 
-    // Flush to persistent storage
+    // Flush all pending writes to persistent storage atomically.
     bool flush();
+
+    // Wrap a specific snapshot ID into the Rust-style top-level object envelope.
+    static bool normalize_snapshot_file_to_rust_envelope(
+        const KvsParameters& params, size_t snapshot_id);
+
+    // Restore the KVS in-memory state from the specified snapshot.
+    bool snapshot_restore(size_t snapshot_id);
+
+    // Return the number of snapshots currently stored on disk.
+    size_t snapshot_count();
 
 private:
     KvsInstance(const KvsParameters& params, score::mw::per::kvs::Kvs&& kvs);

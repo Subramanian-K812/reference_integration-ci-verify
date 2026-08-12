@@ -36,9 +36,10 @@ pytestmark = pytest.mark.parametrize("version", ["rust", "cpp"], scope="class")
 )
 class TestResetToDefault(PersistencyScenario):
     """
-    Verifies that remove_key() resets a key to default by removing it from storage.
-    After removing key2 and flushing: key1 and key3 remain in the snapshot with their
-    override values, while key2 is absent (reverts to default lookup at runtime).
+    Verifies that reset_key() reverts a single key to its configured default.
+    After reset_key on key2 and flushing: key1 and key3 remain in the snapshot
+    with their override values, while key2 is absent from the snapshot but
+    remains accessible via get_value (returns the default value).
     """
 
     _KEYS = ["key1", "key2", "key3"]
@@ -75,22 +76,21 @@ class TestResetToDefault(PersistencyScenario):
             "test": {
                 "keys": self._KEYS,
                 "override_values": self._OVERRIDE_VALUES,
-                "default_values": self._DEFAULT_VALUES,
             },
         }
 
     def test_storage_state(self, results: ScenarioResult, temp_dir: Path) -> None:
         """
-        Verify the KVS snapshot reflects the expected state after remove_key:
-        - key2 (index 1) was removed and must be absent from the snapshot
+        Verify the KVS snapshot reflects the expected state after reset_key:
+        - key2 (index 1) was reset to default and must be absent from the snapshot
         - key1 and key3 remain with their override values
         """
         assert results.return_code == ResultCode.SUCCESS
         snapshot = read_kvs_snapshot(temp_dir, 1)
 
-        # key2 was removed — must be absent from snapshot
+        # key2 was reset to default — must be absent from snapshot
         assert self._KEYS[1] not in snapshot, (
-            f"Reset key '{self._KEYS[1]}' should be absent from snapshot after remove_key"
+            f"Reset key '{self._KEYS[1]}' should be absent from snapshot after reset_key"
         )
 
         # key1 and key3 remain with override values
@@ -104,10 +104,10 @@ class TestResetToDefault(PersistencyScenario):
 
     def test_default_value_reported_after_reset(self, results: ScenarioResult, logs_info_level: Any) -> None:
         """
-        Verify that after remove_key on key2, KVS still reports its default value
+        Verify that after reset_key on key2, KVS still reports its default value
         via get_value — confirming the key was reset to default rather than deleted.
 
-        Checks structured log fields emitted by the scenario after reset.
+        Checks structured log fields emitted by the scenario after reset_key.
         """
         assert results.return_code == ResultCode.SUCCESS
         expected_default = self._DEFAULT_VALUES[1]  # key2's default is 200.0

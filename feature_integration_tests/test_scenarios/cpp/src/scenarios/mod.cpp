@@ -21,6 +21,14 @@ Scenario::Ptr make_reset_to_default_scenario();
 Scenario::Ptr make_utf8_defaults_scenario();
 Scenario::Ptr make_utf8_default_value_get_scenario();
 Scenario::Ptr make_multi_instance_isolation_scenario();
+Scenario::Ptr make_reset_resistant_scenario();
+Scenario::Ptr make_reset_resistant_multi_instance_scenario();
+Scenario::Ptr make_recovery_from_reset_scenario();
+Scenario::Ptr make_recovery_from_reset_multi_instance_scenario();
+Scenario::Ptr make_atomic_store_scenario();
+Scenario::Ptr make_atomic_store_no_partial_write_scenario();
+Scenario::Ptr make_atomic_store_multi_instance_scenario();
+Scenario::Ptr make_atomic_store_flush_failure_scenario();
 ScenarioGroup::Ptr supported_datatypes_group();
 ScenarioGroup::Ptr default_values_group();
 
@@ -34,6 +42,14 @@ ScenarioGroup::Ptr persistency_scenario_group() {
             make_utf8_defaults_scenario(),
             make_utf8_default_value_get_scenario(),
             make_multi_instance_isolation_scenario(),
+            make_reset_resistant_scenario(),
+            make_reset_resistant_multi_instance_scenario(),
+            make_recovery_from_reset_scenario(),
+            make_recovery_from_reset_multi_instance_scenario(),
+            make_atomic_store_scenario(),
+            make_atomic_store_no_partial_write_scenario(),
+            make_atomic_store_multi_instance_scenario(),
+            make_atomic_store_flush_failure_scenario(),
         },
         std::vector<ScenarioGroup::Ptr>{supported_datatypes_group(), default_values_group()});
 }

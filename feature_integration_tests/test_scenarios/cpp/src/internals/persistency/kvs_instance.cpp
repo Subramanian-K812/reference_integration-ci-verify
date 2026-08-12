@@ -154,6 +154,21 @@ std::optional<std::string> snapshot_path(const KvsParameters& params) {
     return dir + "/kvs_" + std::to_string(params.instance_id.value) + "_0.json";
 }
 
+/// Return the path to a specific snapshot ID for the given params.
+std::optional<std::string> snapshot_path_by_id(const KvsParameters& params, size_t snapshot_id) {
+    if (!params.dir.has_value()) {
+        return std::nullopt;
+    }
+
+    std::string dir = *params.dir;
+    if (!dir.empty() && dir.back() == '/') {
+        dir.pop_back();
+    }
+
+    return dir + "/kvs_" + std::to_string(params.instance_id.value) + "_"
+           + std::to_string(snapshot_id) + ".json";
+}
+
 std::optional<bool> to_need_flag(const std::optional<KvsDefaults>& mode) {
     if (!mode.has_value()) {
         return std::nullopt;
@@ -340,4 +355,55 @@ bool KvsInstance::reset_key(const std::string& key) {
 bool KvsInstance::flush() {
     auto result = kvs_.flush();
     return static_cast<bool>(result);
+}
+
+bool KvsInstance::snapshot_restore(size_t snapshot_id) {
+    auto result = kvs_.snapshot_restore(score::mw::per::kvs::SnapshotId{snapshot_id});
+    return static_cast<bool>(result);
+}
+
+size_t KvsInstance::snapshot_count() {
+    auto result = kvs_.snapshot_count();
+    if (!result) {
+        return 0U;
+    }
+    return result.value();
+}
+
+bool KvsInstance::normalize_snapshot_file_to_rust_envelope(
+    const KvsParameters& params, size_t snapshot_id) {
+    const auto path_opt = snapshot_path_by_id(params, snapshot_id);
+    if (!path_opt.has_value()) {
+        std::cerr << "Cannot normalize snapshot " << snapshot_id
+                  << ": missing directory parameter" << std::endl;
+        return false;
+    }
+
+    std::ifstream in(*path_opt);
+    if (!in.is_open()) {
+        std::cerr << "Cannot normalize snapshot: failed to open " << *path_opt << std::endl;
+        return false;
+    }
+
+    std::ostringstream buffer;
+    buffer << in.rdbuf();
+    const std::string content = trim(buffer.str());
+    const std::string bool_canonical = canonicalize_bool_literals(content);
+    const std::string canonical_content = canonicalize_f64_literals(bool_canonical);
+
+    std::string final_content;
+    if (canonical_content.rfind("{\"t\":\"obj\",\"v\":", 0) == 0) {
+        final_content = canonical_content;
+    } else {
+        final_content = "{\"t\":\"obj\",\"v\":" + canonical_content + "}";
+    }
+
+    std::ofstream out(*path_opt, std::ios::trunc);
+    if (!out.is_open()) {
+        std::cerr << "Cannot normalize snapshot: failed to write " << *path_opt << std::endl;
+        return false;
+    }
+
+    out << final_content;
+    return static_cast<bool>(out);
 }
