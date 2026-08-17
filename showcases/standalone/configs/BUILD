@@ -10,17 +10,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 # *******************************************************************************
-name: Internal Tooling Tests
-on:
-  pull_request:
-    types: [opened, reopened, synchronize]
-  push:
-    branches:
-      - main
-jobs:
-  internal_tests:
-    uses: eclipse-score/cicd-workflows/.github/workflows/tests.yml@main
-    with:
-      # Bundles tooling_tests with known_good_tests and quality_scripts_tests; previously only
-      # tooling_tests ran, so the DR-008 unit tests were never executed in CI.
-      bazel-target: "test //scripts:all_python_unit_tests"
+
+exports_files([
+    "logging_app.json",
+    "dlt_generator.json",
+])

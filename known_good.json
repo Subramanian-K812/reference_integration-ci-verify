@@ -3,7 +3,6 @@
         "target_sw": {
             "score_baselibs": {
                 "repo": "https://github.com/eclipse-score/baselibs.git",
-                "version": "0.2.9",
                 "bazel_patches": [
                     "//patches/baselibs:001-restore-trace-library-mock-visibility.patch"
                 ],
@@ -21,8 +20,13 @@
                     ],
                     "langs": [
                         "cpp"
+                    ],
+                    "bazel_config": [
+                        "stage2-gcc",
+                        "stage2-rust"
                     ]
-                }
+                },
+                "hash": "ce204159f37ee7815907369a8f678583bf102306"
             },
             "score_communication": {
                 "repo": "https://github.com/eclipse-score/communication.git",
@@ -41,6 +45,9 @@
                         "//score/mw/com/impl/tracing/configuration:tracing_filter_config_parser_test",
                         "//score/mw/com/impl/tracing:tracing_runtime_test",
                         "//score/mw/com/impl/bindings/lola/tracing:tracing_runtime_test"
+                    ],
+                    "bazel_config": [
+                        "stage2-rust"
                     ]
                 }
             },
@@ -60,7 +67,11 @@
                     "exclude_test_targets": [
                         "//src/cpp/tests:bm_kvs_cpp"
                     ],
-                    "rust_coverage_config": "ferrocene-coverage-per"
+                    "rust_coverage_config": "ferrocene-coverage-per",
+                    "bazel_config": [
+                        "stage2-gcc",
+                        "stage2-rust"
+                    ]
                 }
             },
             "score_orchestrator": {
@@ -70,6 +81,10 @@
                     "code_root_path": "//src/...",
                     "langs": [
                         "rust"
+                    ],
+                    "bazel_config": [
+                        "stage2-gcc",
+                        "stage2-rust"
                     ]
                 }
             },
@@ -80,6 +95,10 @@
                     "code_root_path": "//src/...",
                     "langs": [
                         "rust"
+                    ],
+                    "bazel_config": [
+                        "stage2-gcc",
+                        "stage2-rust"
                     ]
                 }
             },
@@ -92,16 +111,20 @@
                     "exclude_test_targets": [
                         "//score/health_monitor/src/rust:miri_tests",
                         "//score/launch_manager/src/daemon/src/common/concurrency:mpmc_concurrent_queue_tsan_test"
+                    ],
+                    "bazel_config": [
+                        "stage2-gcc",
+                        "stage2-rust"
                     ]
                 }
             },
             "score_logging": {
                 "repo": "https://github.com/eclipse-score/logging.git",
-                "hash": "6282f3a2ec6b1eeeab87c8e9a4435c586bcf9973",
+                "hash": "a6da5cfca65c1a2402f94ef65a61aa7737d1aa32",
                 "bazel_patches": [
                     "//patches/logging:002-needs-json-deps-not-dev-dependency.patch",
-                    "//patches/logging:003-docs-as-code-not-dev-dependency.patch"
-
+                    "//patches/logging:003-docs-as-code-not-dev-dependency.patch",
+                    "//patches/logging:004-rules-pkg-not-dev-dependency.patch"
                 ],
                 "metadata": {
                     "code_root_path": "//score/mw/log/...",
@@ -115,6 +138,10 @@
                     ],
                     "exclude_test_targets": [
                         "//score/mw/log/legacy_non_verbose_api:unit_test"
+                    ],
+                    "bazel_config": [
+                        "stage2-gcc",
+                        "stage2-rust"
                     ]
                 }
             },
@@ -124,6 +151,9 @@
                 "metadata": {
                     "langs": [
                         "cpp"
+                    ],
+                    "bazel_config": [
+                        "stage2-gcc"
                     ]
                 }
             }
