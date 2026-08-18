@@ -1,31 +1,7 @@
 [
   {
     "version": "main",
-    "url": "https://qorix-group.github.io/reference_integration/main/"
-  },
-  {
-    "version": "pr-13",
-    "url": "https://qorix-group.github.io/reference_integration/pr-13/"
-  },
-  {
-    "version": "pr-15",
-    "url": "https://qorix-group.github.io/reference_integration/pr-15/"
-  },
-  {
-    "version": "pr-17",
-    "url": "https://qorix-group.github.io/reference_integration/pr-17/"
-  },
-  {
-    "version": "pr-18",
-    "url": "https://qorix-group.github.io/reference_integration/pr-18/"
-  },
-  {
-    "version": "pr-20",
-    "url": "https://qorix-group.github.io/reference_integration/pr-20/"
-  },
-  {
-    "version": "pr-21",
-    "url": "https://qorix-group.github.io/reference_integration/pr-21/"
+    "url": "https://Subramanian-K812.github.io/reference_integration-ci-verify/main/"
   },
   {
     "version": "v0.6",
